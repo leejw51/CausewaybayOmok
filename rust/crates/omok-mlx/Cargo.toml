@@ -1,0 +1,19 @@
+[package]
+name = "omok-mlx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Apple MLX inference for the Omok policy/value network."
+
+[dependencies]
+omok-core = { workspace = true }
+mlx-rs = { workspace = true }
+serde_json = { workspace = true }
+
+[[example]]
+name = "parity"
+path = "examples/parity.rs"
+
+[[example]]
+name = "bench"
+path = "examples/bench.rs"
