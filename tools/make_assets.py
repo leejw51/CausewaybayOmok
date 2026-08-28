@@ -66,7 +66,7 @@ PROMPTS = {
 
 
 # ------------------------------------------------------------------ generate
-def generate(name: str, prompt: str) -> str:
+def generate(name: str, prompt: str, raw_dir: str = RAW_DIR) -> str:
     key = os.environ.get("XAI_API_KEY") or os.environ.get("GROK_API_KEY")
     if not key:
         raise SystemExit("set XAI_API_KEY (or GROK_API_KEY) to generate art")
@@ -77,7 +77,7 @@ def generate(name: str, prompt: str) -> str:
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=300) as response:
         payload = json.load(response)
-    path = os.path.join(RAW_DIR, f"{name}.png")
+    path = os.path.join(raw_dir, f"{name}.png")
     with open(path, "wb") as fh:
         fh.write(base64.b64decode(payload["data"][0]["b64_json"]))
     return path

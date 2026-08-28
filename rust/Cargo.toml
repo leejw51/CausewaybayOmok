@@ -1,0 +1,19 @@
+[workspace]
+members = ["crates/omok-core", "crates/omok-mlx", "crates/omok-ffi"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+omok-core = { path = "crates/omok-core" }
+omok-mlx = { path = "crates/omok-mlx" }
+serde_json = "1"
+mlx-rs = "0.25"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

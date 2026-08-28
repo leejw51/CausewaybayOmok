@@ -1,0 +1,9 @@
+[package]
+name = "omok-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Omok/gomoku rules, plane encoding, npz weights and batched PUCT search."
+
+[dependencies]
+serde_json = { workspace = true }

@@ -38,7 +38,8 @@ OUTLOG := $(RUN)/logs/train.out
 .PHONY: help env install install-dev install-export install-gui test smoke info bench \
         backends train resume train-bg stop tail status selfplay fit arena export \
         export-onnx export-npz play gui assets watch clear clean-run clean distclean \
-        train-to train-fast train-average train-basic train-casual train-strong train-full
+        train-to train-fast train-average train-basic train-casual train-strong train-full \
+        ai ai-test ai-bench tui game game-portrait love-assets test-lua clean-ai
 
 help: ## Show this help
 	@echo "Omok trainer"
@@ -71,6 +72,12 @@ help: ## Show this help
 	@echo "  make train PRESET=small ITERS=20  # quick run with the small net"
 	@echo "  make train-bg ITERS=1000          # long run in the background"
 	@echo "  make gui COLOR=white SIMS=320     # play the trained model in a window"
+	@echo ""
+	@echo "The Rust core and its two Lua clients:"
+	@echo "  make ai                           # build the MLX engine as a shared library"
+	@echo "  make tui                          # play in the terminal (LuaJIT)"
+	@echo "  make game                         # play the LÖVE game"
+	@echo "  make test-lua                     # test the core through its Lua bindings"
 
 # ----------------------------------------------------------------- setup
 env: ## Show interpreter and available compute backends
@@ -98,6 +105,48 @@ install-gui: ## Reinstall just the GUI dependency (`make install` already includ
 
 assets: ## Regenerate the GUI art with Grok (needs XAI_API_KEY; art is committed)
 	$(PY) tools/make_assets.py $(if $(FORCE),--force,)
+
+# ----------------------------------------------------------------- rust core
+# MLX compiles its own Metal kernels, and the `metal` compiler ships with Xcode
+# rather than with the Command Line Tools.  Pointing DEVELOPER_DIR at Xcode is
+# enough -- unlike `xcode-select -s`, it needs no sudo and changes nothing
+# outside this build.
+XCODE ?= /Applications/Xcode.app/Contents/Developer
+CARGO_ENV := $(if $(wildcard $(XCODE)),DEVELOPER_DIR=$(XCODE),)
+CARGO ?= cargo
+LIB := rust/target/release/libomok_ai.dylib
+LUAJIT ?= luajit
+LOVE ?= love
+
+ai: ## Build the Rust/MLX AI core as a shared library for the Lua clients
+	cd rust && $(CARGO_ENV) $(CARGO) build --release
+	@echo "built $(LIB)"
+
+ai-test: ## Run the Rust unit tests (rules, encoding, checkpoint loading)
+	cd rust && $(CARGO_ENV) $(CARGO) test
+
+ai-bench: ai ## Load the trained model in Rust and time a few searches
+	cd rust && $(CARGO_ENV) $(CARGO) run --release -p omok-mlx --example bench -- \
+	  ../$(RUN)/checkpoints/best.npz
+
+test-lua: ai ## Test the AI core through its LuaJIT bindings
+	$(LUAJIT) lua/test.lua
+
+tui: ai ## Play the trained model in the terminal (LEVEL=1-5, COLOR=black|white)
+	$(LUAJIT) lua/main.lua $(if $(LEVEL),--level $(LEVEL),) \
+	  $(if $(filter white,$(COLOR)),--white,)
+
+game: ai ## Play "Causewaybay Omok" in a window (LÖVE)
+	$(LOVE) love2d
+
+game-portrait: ai ## The same game started in a portrait window
+	OMOK_WINDOW=820x1180 $(LOVE) love2d
+
+love-assets: ## Regenerate the game's pixel art with Grok (needs XAI_API_KEY)
+	$(PY) tools/make_love2d_assets.py $(if $(FORCE),--force,)
+
+clean-ai: ## Remove the Rust build directory
+	rm -rf rust/target
 
 # ----------------------------------------------------------------- checks
 test: ## Run the test suite
