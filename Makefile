@@ -5,8 +5,21 @@
 # After a crash: make resume        (picks up from runs/<name>/state.json)
 # ---------------------------------------------------------------------------
 
-# A python that has torch (and mlx on Apple Silicon).  Override with PY=...
-PY ?= $(shell command -v python3.13 2>/dev/null || command -v python3)
+# Dependencies live in a conda environment that `make install` creates.
+CONDA ?= conda
+CONDA_ENV ?= omok
+CONDA_BASE := $(shell $(CONDA) info --base 2>/dev/null)
+ENV_PY := $(CONDA_BASE)/envs/$(CONDA_ENV)/bin/python
+
+# A python that has torch (and mlx on Apple Silicon).  Defaults to the conda
+# env above once it exists, so no `conda activate` is needed.  Override PY=...
+PY ?= $(if $(wildcard $(ENV_PY)),$(ENV_PY),$(shell command -v python3.13 2>/dev/null || command -v python3))
+
+# conda-forge ships a CUDA build as pytorch-gpu; on Apple Silicon the plain
+# package is the Metal one, and mlx only exists on PyPI.
+IS_MAC := $(filter Darwin-arm64,$(shell uname -s)-$(shell uname -m))
+CONDA_TORCH ?= $(if $(IS_MAC),pytorch,pytorch-gpu)
+INSTALL_MLX := $(if $(IS_MAC),$(CONDA) run -n $(CONDA_ENV) python -m pip install "mlx>=0.20",true)
 PRESET ?= base
 RUN ?= runs/$(PRESET)
 ITERS ?=
@@ -30,6 +43,7 @@ help: ## Show this help
 	@echo "Omok trainer"
 	@echo "  python : $(PY)"
 	@echo "  preset : $(PRESET)   (tiny | small | base | strong)"
+	@echo "  conda  : $(CONDA_ENV)"
 	@echo "  run dir: $(RUN)"
 	@echo ""
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -45,6 +59,7 @@ help: ## Show this help
 	@echo "  STEPS=$(STEPS)       optimisation steps for fit"
 	@echo "  SIMS=           MCTS simulations per move for arena / play"
 	@echo "  PY=$(notdir $(PY))     python interpreter to use"
+	@echo "  CONDA_ENV=$(CONDA_ENV)   conda env that make install builds and make train uses"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make train-casual                 # train until it beats a casual human"
@@ -59,17 +74,23 @@ env: ## Show interpreter and available compute backends
 	@$(PY) -c "import sys; print('python', sys.version.split()[0], sys.executable)"
 	@$(OMOK) backends
 
-install: ## Install runtime dependencies (torch, numpy, mlx on Apple Silicon)
-	$(PY) -m pip install -r requirements.txt
+install: ## Create the conda env $(CONDA_ENV) with the runtime deps (torch, numpy)
+	@$(CONDA) env list | awk '{print $$1}' | grep -qx '$(CONDA_ENV)' \
+	  || $(CONDA) create -y -n $(CONDA_ENV) -c conda-forge python=3.13
+	$(CONDA) install -y -n $(CONDA_ENV) -c conda-forge numpy $(CONDA_TORCH)
+	@$(INSTALL_MLX)
+	@$(MAKE) --no-print-directory env
 
-install-dev: ## Install runtime + test dependencies
-	$(PY) -m pip install -r requirements-dev.txt
+# The extras go on top of the conda env; they deliberately do NOT reinstall
+# torch from PyPI, which would shadow the CUDA build conda just placed.
+install-dev: ## Install test dependencies into $(CONDA_ENV)
+	$(CONDA) install -y -n $(CONDA_ENV) -c conda-forge pytest
 
 install-export: ## Install coremltools (needed only for `make export`)
 	$(PY) -m pip install -r requirements-export.txt
 
 install-gui: ## Install arcade (needed only for `make gui`)
-	$(PY) -m pip install -r requirements-gui.txt
+	$(PY) -m pip install "arcade>=3.0"
 
 assets: ## Regenerate the GUI art with Grok (needs XAI_API_KEY; art is committed)
 	$(PY) tools/make_assets.py $(if $(FORCE),--force,)
