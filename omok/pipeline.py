@@ -37,7 +37,6 @@ class Pipeline:
         self.spec = NetSpec.from_config(cfg)
         seed_everything(cfg.seed)
         self.state = self._load_state()
-        self._save_config()
 
         self.backend = make_backend(self.spec, cfg.backend, lr=cfg.train.lr,
                                     weight_decay=cfg.train.weight_decay)
@@ -53,6 +52,10 @@ class Pipeline:
             self.logger.log("resume", step=meta.get("step", 0), tag=meta.get("tag"),
                             **self.backend.describe())
         self.global_step = int(meta.get("step", self.state.get("global_step", 0)))
+        # Persist the config only now: if a --set override made the stored
+        # checkpoint unloadable (e.g. a different architecture), the restore
+        # above raised first and the run's config.json is left untouched.
+        self._save_config()
 
         # The self-play network is the current *best*, not the latest.
         if self.checkpoints.best() is None:
@@ -145,10 +148,36 @@ class Pipeline:
                         path=self.checkpoints.best_path)
 
     # ------------------------------------------------------------- driver
-    def run(self, iterations: int | None = None) -> dict[str, Any]:
-        total = iterations if iterations is not None else self.cfg.iterations
+    def target_iteration(self, iterations: int | None = None) -> int:
+        """Where this invocation will stop (absolute iteration number).
+
+        ``iterations`` (``--iterations N``) always means N *more*.  Without it
+        a run continues to the target it was last started with -- so a crash
+        during ``make train`` (to 200) resumes to 200, not to the preset total
+        -- and a run that has never been given a target uses the configured
+        ``cfg.iterations``.
+        """
         start_iteration = int(self.state.get("iteration", 0))
-        end_iteration = start_iteration + total
+        if iterations is not None:
+            return start_iteration + iterations
+        target = self.state.get("target_iteration")
+        if target is None:
+            target = self.cfg.iterations
+        return max(start_iteration, int(target))
+
+    def run(self, iterations: int | None = None) -> dict[str, Any]:
+        start_iteration = int(self.state.get("iteration", 0))
+        end_iteration = self.target_iteration(iterations)
+        if end_iteration == start_iteration:
+            # Nothing to do: say so and leave the run directory exactly as it
+            # is (no checkpoint rewrite, no optimiser state clobbered).
+            self.logger.log("pipeline.complete", iteration=start_iteration,
+                            target=end_iteration, configured=self.cfg.iterations,
+                            hint="pass --iterations N to train N more")
+            summary = self.summary()
+            summary["complete"] = True
+            return summary
+        self._save_state(target_iteration=end_iteration)
         self.logger.log("pipeline.start", iteration=start_iteration, until=end_iteration,
                         phase=self.state.get("phase", "selfplay"),
                         run_dir=os.path.abspath(self.paths.root))

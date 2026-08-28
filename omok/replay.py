@@ -65,8 +65,20 @@ class ShardWriter:
     def flush(self) -> bool:
         if not self._pending:
             return False
-        path = os.path.join(self.dir, f"shard-{self._seq:08d}.npz")
-        write_shard(path, self._pending)
+        # Another process may share this directory (a second `make train-bg`,
+        # or `make selfplay` next to it).  Skip past any shard that appeared
+        # since we chose our number, and create ours exclusively so that two
+        # writers picking the same number at the same moment cannot silently
+        # clobber each other: the loser just moves on to the next number.
+        while True:
+            path = os.path.join(self.dir, f"shard-{self._seq:08d}.npz")
+            if not os.path.exists(path):
+                try:
+                    write_shard(path, self._pending, exclusive=True)
+                    break
+                except FileExistsError:
+                    pass
+            self._seq += 1
         self._seq += 1
         self._pending.clear()
         self._last_flush = time.time()
@@ -85,7 +97,7 @@ def _next_shard_seq(directory: str) -> int:
     return best + 1
 
 
-def write_shard(path: str, games: Sequence[GameRecord]) -> None:
+def write_shard(path: str, games: Sequence[GameRecord], exclusive: bool = False) -> None:
     action_size = len(games[0].policies[0])
     offsets = np.zeros(len(games) + 1, dtype=np.int64)
     for i, game in enumerate(games):
@@ -105,7 +117,8 @@ def write_shard(path: str, games: Sequence[GameRecord]) -> None:
         iterations[i] = game.iteration
     payload = dict(moves=moves, offsets=offsets, policies=policies,
                    trainable=trainable, winners=winners, iterations=iterations)
-    atomic_write_with(path, lambda tmp: np.savez_compressed(tmp, **payload), suffix=".npz")
+    atomic_write_with(path, lambda tmp: np.savez_compressed(tmp, **payload), suffix=".npz",
+                      exclusive=exclusive)
 
 
 def shard_paths(directory: str) -> list[str]:

@@ -1175,7 +1175,7 @@ loss.backward(); clip_grad_norm_(net, 4.0); opt.step()  <i># AdamW</i></pre>
       </div>
 <pre class="code en">runs/base/                    <i># one run = one directory (runs/blitz, runs/fast, …)</i>
 ├─ config.json                <i># every knob, resolved once when the run is created</i>
-├─ state.json                 <i># the bookmark: iteration · global_step · phase</i>
+├─ state.json                 <i># the bookmark: iteration · global_step · phase · target_iteration</i>
 ├─ train.pid                  <i># only while `make train-bg` runs — for `make stop`</i>
 ├─ replay/
 │  └─ shard-00002950.npz      <i># 2 games per shard: moves + π (float16) + winners</i>
@@ -1193,7 +1193,7 @@ loss.backward(); clip_grad_norm_(net, 4.0); opt.step()  <i># AdamW</i></pre>
    └─ OmokNet.mlpackage       <i># best.npz translated for the iPhone / Mac app</i></pre>
 <pre class="code ko">runs/base/                    <i># 런 하나 = 디렉터리 하나 (runs/blitz, runs/fast, …)</i>
 ├─ config.json                <i># 모든 설정값 — 런이 만들어질 때 한 번 확정</i>
-├─ state.json                 <i># 책갈피: iteration · global_step · phase</i>
+├─ state.json                 <i># 책갈피: iteration · global_step · phase · target_iteration</i>
 ├─ train.pid                  <i># `make train-bg` 동안만 존재 — `make stop`용</i>
 ├─ replay/
 │  └─ shard-00002950.npz      <i># 샤드당 2판: 수순 + π(float16) + 승자</i>

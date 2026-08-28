@@ -74,19 +74,29 @@ def generate_games(backend, cfg: Config, writer: ShardWriter, num_games: int,
     stats = SelfPlayStats()
     timer = Timer()
 
-    def start_game() -> _ActiveGame:
+    def start_game() -> _ActiveGame | None:
+        """Returns None when the random opening already finished the game."""
         board = new_board(cfg)
         game = _ActiveGame(Tree(board, mcts_cfg), GameRecord(iteration=iteration),
                            opening_left=sp.random_opening_plies)
         _play_opening(game, rng, cfg)
+        if game.tree.board.over:  # decided before a single searched move
+            _finalise(game, stats)
+            writer.add(game.record)
+            stats.seconds = timer.elapsed()
+            if on_game is not None:
+                on_game(game.record, stats)
+            return None
         return game
 
     active: list[_ActiveGame] = []
     started = 0
     slots = min(sp.parallel_games, num_games)
-    for _ in range(slots):
-        active.append(start_game())
+    while started < num_games and len(active) < slots:
+        game = start_game()
         started += 1
+        if game is not None:
+            active.append(game)
 
     while active:
         if killer is not None and killer.stop:
@@ -121,9 +131,13 @@ def generate_games(backend, cfg: Config, writer: ShardWriter, num_games: int,
             stats.seconds = timer.elapsed()
             if on_game is not None:
                 on_game(game.record, stats)
-            if started < num_games and not (killer is not None and killer.stop):
-                active.append(start_game())
+            while started < num_games and len(active) < slots \
+                    and not (killer is not None and killer.stop):
+                replacement = start_game()
                 started += 1
+                if replacement is not None:
+                    active.append(replacement)
+                    break  # one slot freed, one replacement seated
 
     writer.flush()
     stats.seconds = timer.elapsed()

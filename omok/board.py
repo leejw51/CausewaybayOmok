@@ -223,16 +223,18 @@ def parse_move(text: str, size: int) -> int:
     if not text:
         raise ValueError("empty move")
     if "," in text:
-        row, col = text.split(",", 1)
-        return int(row) * size + int(col)
-    if text[0].isalpha():
-        col = ord(text[0]) - ord("a")
-        row = int(text[1:])
-        return row * size + col
-    value = int(text)
-    if value >= size * size:
-        raise ValueError("index out of range")
-    return value
+        row_text, col_text = text.split(",", 1)
+        row, col = int(row_text), int(col_text)
+    elif text[0].isalpha():
+        row, col = int(text[1:]), ord(text[0]) - ord("a")
+    else:
+        value = int(text)
+        if not 0 <= value < size * size:
+            raise ValueError("index out of range")
+        return value
+    if not (0 <= row < size and 0 <= col < size):
+        raise ValueError(f"off the board: {text!r}")
+    return row * size + col
 
 
 def format_move(index: int, size: int) -> str:
