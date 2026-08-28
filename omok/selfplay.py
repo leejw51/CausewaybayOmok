@@ -91,14 +91,24 @@ def generate_games(backend, cfg: Config, writer: ShardWriter, num_games: int,
     while active:
         if killer is not None and killer.stop:
             break
-        run_search([g.tree for g in active], evaluator, mcts_cfg.simulations, rng)
+        # Positions with a one-ply forced answer (take the win / block the
+        # opponent's) need no search: the move is played outright and recorded
+        # as a one-hot target, which teaches the net the tactic directly.
+        forced = {id(g): g.tree.board.forced_move() for g in active}
+        run_search([g.tree for g in active if forced[id(g)] is None],
+                   evaluator, mcts_cfg.simulations, rng)
         finished: list[_ActiveGame] = []
         for game in active:
             tree = game.tree
-            probs = tree.visit_distribution()
-            temperature = (mcts_cfg.temperature
-                           if tree.board.move_number < mcts_cfg.temperature_moves else 0.0)
-            move = tree.pick_move(rng, temperature)
+            move = forced[id(game)]
+            if move is not None:
+                probs = np.zeros(cfg.action_size, dtype=np.float32)
+                probs[move] = 1.0
+            else:
+                probs = tree.visit_distribution()
+                temperature = (mcts_cfg.temperature
+                               if tree.board.move_number < mcts_cfg.temperature_moves else 0.0)
+                move = tree.pick_move(rng, temperature)
             game.record.add(move, probs, trainable=True)
             tree.advance(move)
             stats.moves += 1

@@ -75,7 +75,8 @@ def play(cfg: Config, model_path: str | None = None, simulations: int | None = N
                 continue
         else:
             tree, lines = analyse(cfg, backend, board, simulations, rng)
-            move = tree.pick_move(rng, 0.0)
+            forced = board.forced_move()
+            move = forced if forced is not None else tree.pick_move(rng, 0.0)
             value = tree.root_value()
             if show_analysis:
                 print(f"  engine ({side}) eval {value:+.2f}   " + "  ".join(lines))

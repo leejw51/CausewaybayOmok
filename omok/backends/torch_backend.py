@@ -14,6 +14,12 @@ from ..netspec import NetSpec, check_weights
 from .base import Backend
 
 
+# TF32 matmul/conv on Ampere-and-later GPUs: ~2x throughput, and the model is
+# far too small for the precision difference to matter.
+torch.set_float32_matmul_precision("high")
+torch.backends.cudnn.benchmark = True
+
+
 def pick_device(prefer: str | None = None) -> torch.device:
     if prefer:
         return torch.device(prefer)

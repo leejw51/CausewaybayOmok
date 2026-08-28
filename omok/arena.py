@@ -74,11 +74,20 @@ def play_match(cfg: Config, backend_a, backend_b, games: int, simulations: int,
                          and _side_to_move(boards[i], black_is_a[i]) == side]
                 if not group:
                     continue
-                trees = [Tree(boards[i].copy(), mcts_cfg) for i in group]
+                # Forced one-ply tactics are played outright for both nets, so
+                # the match measures judgement rather than blunder frequency.
+                searched = []
+                for i in group:
+                    move = boards[i].forced_move()
+                    if move is not None:
+                        boards[i].play(move)
+                    else:
+                        searched.append(i)
+                trees = [Tree(boards[i].copy(), mcts_cfg) for i in searched]
                 for tree in trees:
                     tree.root_noise_applied = True  # deterministic evaluation
                 run_search(trees, evaluators[side], simulations, rng)
-                for i, tree in zip(group, trees):
+                for i, tree in zip(searched, trees):
                     temperature = (mcts_cfg.temperature
                                    if boards[i].move_number < temperature_moves else 0.0)
                     boards[i].play(tree.pick_move(rng, temperature))

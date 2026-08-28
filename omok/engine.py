@@ -153,10 +153,12 @@ class Engine(threading.Thread):
         probs = tree.visit_distribution()
         order = np.argsort(-probs)[:6]
         top = [(int(i), float(probs[i])) for i in order if probs[i] > 0.0]
+        # Never miss a one-ply win or fail to block one, whatever the search says.
+        forced = board.forced_move()
         return Result(
             job=request.job,
             kind=request.kind,
-            move=tree.pick_move(rng, request.temperature),
+            move=forced if forced is not None else tree.pick_move(rng, request.temperature),
             value=tree.root_value(),
             ply=board.move_number,
             top=top,
