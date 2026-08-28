@@ -56,6 +56,10 @@ def bench_network(backend, spec: NetSpec, batch: int = 64,
 
 
 def bench_train(backend, cfg: Config, spec: NetSpec, seconds: float = 2.0) -> dict[str, float]:
+    # Benchmark on a throwaway copy: these are real optimiser steps against
+    # random targets, and running them on the live network would corrupt its
+    # weights, BatchNorm statistics and optimiser state.
+    backend = backend.clone_for_inference()
     batch = cfg.train.batch_size
     size = spec.board_size
     rng = np.random.default_rng(0)

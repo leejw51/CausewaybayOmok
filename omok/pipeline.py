@@ -37,7 +37,6 @@ class Pipeline:
         self.spec = NetSpec.from_config(cfg)
         seed_everything(cfg.seed)
         self.state = self._load_state()
-        self._save_config()
 
         self.backend = make_backend(self.spec, cfg.backend, lr=cfg.train.lr,
                                     weight_decay=cfg.train.weight_decay)
@@ -53,6 +52,10 @@ class Pipeline:
             self.logger.log("resume", step=meta.get("step", 0), tag=meta.get("tag"),
                             **self.backend.describe())
         self.global_step = int(meta.get("step", self.state.get("global_step", 0)))
+        # Persist the config only now: if a --set override made the stored
+        # checkpoint unloadable (e.g. a different architecture), the restore
+        # above raised first and the run's config.json is left untouched.
+        self._save_config()
 
         # The self-play network is the current *best*, not the latest.
         if self.checkpoints.best() is None:
@@ -146,9 +149,17 @@ class Pipeline:
 
     # ------------------------------------------------------------- driver
     def run(self, iterations: int | None = None) -> dict[str, Any]:
-        total = iterations if iterations is not None else self.cfg.iterations
         start_iteration = int(self.state.get("iteration", 0))
-        end_iteration = start_iteration + total
+        if iterations is None:
+            # Default: train up to the configured total.  A resume finishes
+            # the run instead of adding a whole fresh budget each time.
+            end_iteration = max(start_iteration, self.cfg.iterations)
+            if end_iteration == start_iteration:
+                self.logger.log("pipeline.complete", iteration=start_iteration,
+                                configured=self.cfg.iterations,
+                                hint="pass --iterations N to train N more")
+        else:  # explicit count: run exactly this many more iterations
+            end_iteration = start_iteration + iterations
         self.logger.log("pipeline.start", iteration=start_iteration, until=end_iteration,
                         phase=self.state.get("phase", "selfplay"),
                         run_dir=os.path.abspath(self.paths.root))

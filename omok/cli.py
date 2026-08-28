@@ -64,8 +64,6 @@ def cmd_train(args: argparse.Namespace) -> int:
     from .utils import GracefulKiller
 
     cfg = resolve_config(args)
-    if args.iterations is not None:
-        cfg.iterations = args.iterations
     killer = GracefulKiller()
     pipeline = Pipeline(cfg, killer=killer)
     try:
@@ -95,8 +93,19 @@ def cmd_selfplay(args: argparse.Namespace) -> int:
     backend.set_weights(checkpoint.weights() if checkpoint else init_weights(spec, cfg.seed))
     logger = JsonlLogger(os.path.join(paths.logs, "selfplay.jsonl"))
     killer = GracefulKiller()
+    if args.iteration is None:
+        # Default: add --games NEW games to the run's current iteration.
+        # (With an explicit --iteration, --games is the top-up target instead,
+        # matching how the pipeline resumes an interrupted self-play phase.)
+        from .replay import count_games
+
+        state = read_json(paths.state, default={}) or {}
+        iteration = int(state.get("iteration", 0))
+        target = count_games(paths.replay, iteration=iteration) + args.games
+    else:
+        iteration, target = args.iteration, args.games
     try:
-        stats = run_selfplay(cfg, backend, args.iteration, args.games, killer=killer,
+        stats = run_selfplay(cfg, backend, iteration, target, killer=killer,
                              logger=logger)
     finally:
         logger.close()
@@ -304,15 +313,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("train", help="run the full loop (resumes automatically)")
     add_common(p)
-    p.add_argument("--iterations", type=int, default=None)
+    p.add_argument("--iterations", type=int, default=None,
+                   help="run this many MORE iterations (default: continue "
+                        "to the run's configured total, then stop)")
     p.add_argument("--no-bench", action="store_true")
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_train)
 
     p = sub.add_parser("selfplay", help="generate self-play games only")
     add_common(p)
-    p.add_argument("--games", type=int, default=32)
-    p.add_argument("--iteration", type=int, default=0)
+    p.add_argument("--games", type=int, default=32,
+                   help="how many NEW games to generate")
+    p.add_argument("--iteration", type=int, default=None,
+                   help="tag games with this iteration and treat --games as "
+                        "the top-up target for it (default: current iteration, "
+                        "--games added on top of what exists)")
     p.set_defaults(func=cmd_selfplay)
 
     p = sub.add_parser("fit", help="train on existing self-play data only")

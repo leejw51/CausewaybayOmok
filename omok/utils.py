@@ -46,6 +46,11 @@ def atomic_write_with(path: str, writer, suffix: str = ".part") -> None:
     tmp = os.path.join(directory, f".tmp-{os.getpid()}-{time.time_ns()}{suffix}")
     try:
         writer(tmp)
+        fd = os.open(tmp, os.O_RDONLY)  # writers close the file themselves,
+        try:                            # so re-open to fsync before the rename
+            os.fsync(fd)
+        finally:
+            os.close(fd)
         os.replace(tmp, path)
     except BaseException:
         _silent_unlink(tmp)

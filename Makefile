@@ -228,6 +228,8 @@ train-full: ## Train to iteration 1000 (~17h on RTX 5070): the full run
 
 train-bg: ## Train in the background (ITERS= or preset default), logging to $(OUTLOG)
 	@mkdir -p $(RUN)/logs
+	@if [ -f $(PIDFILE) ] && kill -0 $$(cat $(PIDFILE)) 2>/dev/null; then \
+	  echo "already training (pid $$(cat $(PIDFILE))) -- make stop first"; exit 1; fi
 	@nohup $(OMOK) train $(COMMON) $(if $(ITERS),--iterations $(ITERS),) \
 	  >> $(OUTLOG) 2>&1 & echo $$! > $(PIDFILE)
 	@echo "training started (pid $$(cat $(PIDFILE))) -- log: $(OUTLOG)"

@@ -130,11 +130,24 @@ class CheckpointManager:
                 log(f"warning: checkpoint {tag} is unreadable, falling back")
                 continue
             meta = read_json(self.path_for(tag, META_SUFFIX), default={}) or {}
+            if not meta:
+                # A crash between the weights write and the meta write leaves
+                # a readable .npz with no .json.  The weights are still the
+                # newest trained state -- synthesise enough meta to resume
+                # from them instead of falling back to random init.
+                match = re.fullmatch(r"step-(\d+)", tag)
+                meta = {"step": int(match.group(1)) if match else 0,
+                        "tag": tag, "meta_missing": True}
             return Checkpoint(tag, weights_path, meta)
         return None
 
     def best(self) -> Checkpoint | None:
         if not os.path.exists(self.best_path):
+            return None
+        try:  # a torn best.npz must not block startup -- the caller re-seeds it
+            load_weights(self.best_path)
+        except Exception:
+            log("warning: best.npz is unreadable -- ignoring it")
             return None
         meta = read_json(self.best_meta_path, default={}) or {}
         return Checkpoint("best", self.best_path, meta)

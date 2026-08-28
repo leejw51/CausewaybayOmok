@@ -66,6 +66,12 @@ class ShardWriter:
         if not self._pending:
             return False
         path = os.path.join(self.dir, f"shard-{self._seq:08d}.npz")
+        # Another process may share this directory (a second `make train-bg`,
+        # or `make selfplay` next to it): skip past any shard that appeared
+        # since we chose our number instead of silently clobbering it.
+        while os.path.exists(path):
+            self._seq += 1
+            path = os.path.join(self.dir, f"shard-{self._seq:08d}.npz")
         write_shard(path, self._pending)
         self._seq += 1
         self._pending.clear()
