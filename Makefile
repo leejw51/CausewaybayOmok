@@ -23,7 +23,7 @@ OUTLOG := $(RUN)/logs/train.out
 .DEFAULT_GOAL := help
 .PHONY: help env install install-dev install-export install-gui test smoke info bench \
         backends train resume train-bg stop tail status selfplay fit arena export \
-        export-onnx export-npz play gui watch clean-run clean distclean \
+        export-onnx export-npz play gui assets watch clean-run clean distclean \
         train-to train-basic train-casual train-strong train-full
 
 help: ## Show this help
@@ -70,6 +70,9 @@ install-export: ## Install coremltools (needed only for `make export`)
 
 install-gui: ## Install arcade (needed only for `make gui`)
 	$(PY) -m pip install -r requirements-gui.txt
+
+assets: ## Regenerate the GUI art with Grok (needs XAI_API_KEY; art is committed)
+	$(PY) tools/make_assets.py $(if $(FORCE),--force,)
 
 # ----------------------------------------------------------------- checks
 test: ## Run the test suite

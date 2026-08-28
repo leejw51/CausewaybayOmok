@@ -152,6 +152,7 @@ engine thinks and an undo takes effect immediately.
 | `space` | make the engine move now for the side to play |
 | `h` | hint: search the current position without playing it |
 | `a` | toggle the candidate-move overlay |
+| `f` | toggle the animations and particles |
 | `u` | undo (your move and the reply) |
 | `n` | new game |
 | `s` | cycle black / white / engine-vs-engine / two humans |
@@ -162,6 +163,40 @@ engine thinks and an undo takes effect immediately.
 The side panel shows the loaded model and backend, an evaluation bar from
 black's point of view, the search's top candidate moves with their visit
 shares, and how fast the last search ran.
+
+### Look and feel
+
+Stones land with an `ease_out_back` overshoot that squashes on impact, ring the
+board with a shockwave and throw a burst of sparks — warm for black, cool for
+white. The evaluation bar and the search progress ease toward their new values
+rather than jumping, candidate moves fade in staggered and the best one
+breathes, and the last move keeps a slow pulse. Winning sweeps a springy
+highlight down the five stones, sets off confetti, flashes the screen and
+rattles the board. Undo and new game puff the stones away.
+
+`f` turns all of it off (`--no-effects` to start that way) — the game plays
+identically, it just stops moving. The easing curves and the particle pool are
+in `omok/effects.py`, kept free of arcade imports so they are unit-tested
+without a display.
+
+### The art
+
+The board, stones, spark and panel textures in `omok/assets/` were generated
+with **Grok** (`grok-imagine-image`) and are committed, so playing needs no API
+key. `tools/make_assets.py` holds the prompts and the post-processing that
+turns an opaque rectangle into a game sprite — the stones are found by contrast
+against their backdrop and given an anti-aliased circular alpha, and the spark
+becomes alpha-from-luminance so its black background reads as transparency
+under additive blending.
+
+```bash
+export XAI_API_KEY=...
+make assets              # reuse any raw generations in assets_raw/
+make assets FORCE=1      # ask Grok for fresh ones
+```
+
+If the assets are deleted the window falls back to flat colours and keeps
+working.
 
 ## Using the model in the game (iPhone / Mac)
 
@@ -221,6 +256,8 @@ rather write your own Metal/Accelerate inference.
 | `omok/report.py` | model size, benchmarks, time estimates |
 | `omok/engine.py` | the search on a worker thread, for interactive play |
 | `omok/gui.py` | the Arcade window: board, side panel, input |
+| `omok/effects.py` | easing curves, tweened values, the particle pool |
+| `omok/assets/` | Grok-generated art (see `tools/make_assets.py`) |
 | `omok/play.py` | terminal play + model loading shared with the GUI |
 | `omok/cli.py` | the `python3 -m omok ...` command line |
 
@@ -232,6 +269,6 @@ that (`test_torch_and_mlx_agree_on_the_same_weights`).
 
 ```bash
 make install-dev
-make test        # 60 tests, ~9 seconds
+make test        # 88 tests, ~8 seconds
 make smoke       # full loop end to end on a 9x9 board
 ```

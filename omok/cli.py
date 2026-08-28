@@ -207,7 +207,7 @@ def cmd_gui(args: argparse.Namespace) -> int:
         print("install it with `make install-gui` (or `pip install arcade`)")
         return 1
     run_gui(cfg, model_path=args.model, simulations=args.simulations, human=args.color,
-            opening_plies=args.opening_plies)
+            opening_plies=args.opening_plies, effects=not args.no_effects)
     return 0
 
 
@@ -352,6 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="which colour you play ('none' watches the engine play itself)")
     p.add_argument("--opening-plies", type=int, default=2,
                    help="plies the engine plays with some randomness, for variety")
+    p.add_argument("--no-effects", action="store_true",
+                   help="start with the animations and particles off (toggle with 'f')")
     p.set_defaults(func=cmd_gui)
 
     p = sub.add_parser("status", help="what is on disk for this run")
