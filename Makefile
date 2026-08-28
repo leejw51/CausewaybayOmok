@@ -19,7 +19,8 @@ PY ?= $(if $(wildcard $(ENV_PY)),$(ENV_PY),$(shell command -v python3.13 2>/dev/
 # package is the Metal one, and mlx only exists on PyPI.
 IS_MAC := $(filter Darwin-arm64,$(shell uname -s)-$(shell uname -m))
 CONDA_TORCH ?= $(if $(IS_MAC),pytorch,pytorch-gpu)
-INSTALL_MLX := $(if $(IS_MAC),$(CONDA) run -n $(CONDA_ENV) python -m pip install "mlx>=0.20",true)
+ENV_PIP := $(CONDA) run -n $(CONDA_ENV) python -m pip install
+INSTALL_MLX := $(if $(IS_MAC),$(ENV_PIP) "mlx>=0.20",true)
 PRESET ?= base
 RUN ?= runs/$(PRESET)
 ITERS ?=
@@ -76,11 +77,12 @@ env: ## Show interpreter and available compute backends
 	@$(PY) -c "import sys; print('python', sys.version.split()[0], sys.executable)"
 	@$(OMOK) backends
 
-install: ## Create the conda env $(CONDA_ENV) with the runtime deps (torch, numpy)
+install: ## Create the conda env $(CONDA_ENV) with everything needed to train and play
 	@$(CONDA) env list | awk '{print $$1}' | grep -qx '$(CONDA_ENV)' \
 	  || $(CONDA) create -y -n $(CONDA_ENV) -c conda-forge python=3.13
 	$(CONDA) install -y -n $(CONDA_ENV) -c conda-forge numpy $(CONDA_TORCH)
 	@$(INSTALL_MLX)
+	$(ENV_PIP) "arcade>=3.0"
 	@$(MAKE) --no-print-directory env
 
 # The extras go on top of the conda env; they deliberately do NOT reinstall
@@ -89,10 +91,10 @@ install-dev: ## Install test dependencies into $(CONDA_ENV)
 	$(CONDA) install -y -n $(CONDA_ENV) -c conda-forge pytest
 
 install-export: ## Install coremltools (needed only for `make export`)
-	$(PY) -m pip install -r requirements-export.txt
+	$(ENV_PIP) -r requirements-export.txt
 
-install-gui: ## Install arcade (needed only for `make gui`)
-	$(PY) -m pip install "arcade>=3.0"
+install-gui: ## Reinstall just the GUI dependency (`make install` already includes it)
+	$(ENV_PIP) "arcade>=3.0"
 
 assets: ## Regenerate the GUI art with Grok (needs XAI_API_KEY; art is committed)
 	$(PY) tools/make_assets.py $(if $(FORCE),--force,)
