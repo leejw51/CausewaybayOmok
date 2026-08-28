@@ -1,0 +1,2 @@
+coremltools>=8.0
+onnx>=1.16          # only needed for `--format onnx`
