@@ -166,7 +166,7 @@ def format_report(cfg: Config, spec: NetSpec, backend_info: dict[str, Any],
     add("")
     add("Compute")
     add(f"  backend           {backend_info.get('backend')} on {backend_info.get('device')}")
-    for key in ("torch", "mlx", "gpu"):
+    for key in ("torch", "mlx", "gpu", "gpu_memory"):
         if key in backend_info:
             add(f"  {key:<17} {backend_info[key]}")
     add(f"  host              {platform.system()} {platform.machine()}, "

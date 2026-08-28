@@ -190,6 +190,14 @@ class MLXBackend(Backend):
     def describe(self) -> dict[str, Any]:
         info = super().describe()
         info["mlx"] = getattr(mx, "__version__", "?")
+        info["gpu"] = "Apple Silicon (unified memory)"
+        try:  # device_info moved between mx.metal and mx.core across releases
+            device_info = getattr(mx, "metal", mx).device_info()
+            size = device_info.get("memory_size") or device_info.get("max_recommended_working_set_size")
+            if size:
+                info["gpu_memory"] = f"{size / (1024 ** 3):.1f} GiB"
+        except Exception:
+            pass
         return info
 
     def clone_for_inference(self) -> "MLXBackend":
