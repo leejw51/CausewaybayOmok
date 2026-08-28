@@ -39,7 +39,8 @@ OUTLOG := $(RUN)/logs/train.out
         backends train resume train-bg stop tail status selfplay fit arena export \
         export-onnx export-npz play gui assets watch clear clean-run clean distclean \
         train-to train-fast train-average train-basic train-casual train-strong train-full \
-        ai ai-test ai-bench tui game game-portrait love-assets test-lua clean-ai
+        ai ai-test ai-bench tui game game-portrait love-assets love-sfx love-font \
+        test-lua clean-ai
 
 help: ## Show this help
 	@echo "Omok trainer"
@@ -147,6 +148,12 @@ game-portrait: ai ## The same game started in a portrait window
 
 love-assets: ## Regenerate the game's pixel art with Grok (needs XAI_API_KEY)
 	$(PY) tools/make_love2d_assets.py $(if $(FORCE),--force,)
+
+love-sfx: ## Regenerate the game's 8-bit sound effects (no API key, no samples)
+	$(PY) tools/make_love2d_sfx.py $(SOUND)
+
+love-font: ## Redraw the game's bitmap font (no API key, no dependencies)
+	$(PY) tools/make_love2d_font.py
 
 clean-ai: ## Remove the Rust build directory
 	rm -rf rust/target

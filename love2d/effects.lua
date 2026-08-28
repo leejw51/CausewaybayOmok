@@ -158,6 +158,22 @@ function Particles:burst(x, y, count, spec)
     end
 end
 
+--- Emit `count` particles spread along the segment (x1, y1) to (x2, y2).
+--
+-- What a trail needs.  Something moving fast crosses a lot of ground between
+-- two frames -- a stone coming in covers a third of the board -- so emitting at
+-- wherever it happens to be once a frame leaves a dotted line, and a slower
+-- machine leaves a dashed one.  Spreading the frame's particles along the
+-- ground actually covered gives the same continuous trail at any frame rate.
+function Particles:streak(x1, y1, x2, y2, count, spec)
+    for i = 1, count do
+        -- Half-steps, so the particles sit between the two frames rather than
+        -- one landing exactly on top of the last frame's.
+        local t = (i - 0.5) / count
+        self:burst(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, 1, spec)
+    end
+end
+
 --- Emit particles that fall inward towards (x, y) -- the undo effect.
 function Particles:implode(x, y, count, spec)
     spec = spec or {}
