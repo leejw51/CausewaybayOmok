@@ -1,0 +1,2 @@
+-r requirements.txt
+arcade>=3.0        # only needed for `make gui`

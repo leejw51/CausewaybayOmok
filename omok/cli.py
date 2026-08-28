@@ -198,6 +198,19 @@ def cmd_play(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gui(args: argparse.Namespace) -> int:
+    cfg = resolve_config(args)
+    try:
+        from .gui import run_gui
+    except ImportError as exc:
+        print(exc)
+        print("install it with `make install-gui` (or `pip install arcade`)")
+        return 1
+    run_gui(cfg, model_path=args.model, simulations=args.simulations, human=args.color,
+            opening_plies=args.opening_plies, effects=not args.no_effects)
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     from .checkpoint import CheckpointManager
     from .replay import dataset_stats
@@ -330,6 +343,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--simulations", type=int, default=None)
     p.add_argument("--color", default="black", choices=["black", "white", "none"])
     p.set_defaults(func=cmd_play)
+
+    p = sub.add_parser("gui", help="play against the trained model in a window (Arcade)")
+    add_common(p)
+    p.add_argument("--model", default=None, help="weights .npz (default: the run's best)")
+    p.add_argument("--simulations", type=int, default=None)
+    p.add_argument("--color", default="black", choices=["black", "white", "none", "both"],
+                   help="which colour you play ('none' watches the engine play itself)")
+    p.add_argument("--opening-plies", type=int, default=2,
+                   help="plies the engine plays with some randomness, for variety")
+    p.add_argument("--no-effects", action="store_true",
+                   help="start with the animations and particles off (toggle with 'f')")
+    p.set_defaults(func=cmd_gui)
 
     p = sub.add_parser("status", help="what is on disk for this run")
     add_common(p)
