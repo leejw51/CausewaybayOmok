@@ -21,9 +21,9 @@ PIDFILE := $(RUN)/train.pid
 OUTLOG := $(RUN)/logs/train.out
 
 .DEFAULT_GOAL := help
-.PHONY: help env install install-dev install-export test smoke info bench backends \
-        train resume train-bg stop tail status selfplay fit arena export export-onnx \
-        export-npz play watch clean-run clean distclean \
+.PHONY: help env install install-dev install-export install-gui test smoke info bench \
+        backends train resume train-bg stop tail status selfplay fit arena export \
+        export-onnx export-npz play gui watch clean-run clean distclean \
         train-to train-basic train-casual train-strong train-full
 
 help: ## Show this help
@@ -52,6 +52,7 @@ help: ## Show this help
 	@echo "  make train ITERS=200              # 200 MORE iterations, then stop"
 	@echo "  make train PRESET=small ITERS=20  # quick run with the small net"
 	@echo "  make train-bg ITERS=1000          # long run in the background"
+	@echo "  make gui COLOR=white SIMS=320     # play the trained model in a window"
 
 # ----------------------------------------------------------------- setup
 env: ## Show interpreter and available compute backends
@@ -66,6 +67,9 @@ install-dev: ## Install runtime + test dependencies
 
 install-export: ## Install coremltools (needed only for `make export`)
 	$(PY) -m pip install -r requirements-export.txt
+
+install-gui: ## Install arcade (needed only for `make gui`)
+	$(PY) -m pip install -r requirements-gui.txt
 
 # ----------------------------------------------------------------- checks
 test: ## Run the test suite
@@ -158,6 +162,9 @@ export-npz: ## Export raw weights + metadata (no coremltools needed)
 
 play: ## Play against the trained model in the terminal (COLOR=black|white)
 	$(OMOK) play $(COMMON) --color $(COLOR) $(if $(SIMS),--simulations $(SIMS),)
+
+gui: ## Play against the trained model in a window (COLOR=black|white|none|both)
+	$(OMOK) gui $(COMMON) --color $(COLOR) $(if $(SIMS),--simulations $(SIMS),)
 
 # ----------------------------------------------------------------- cleaning
 clean-run: ## Delete this run's directory ($(RUN)) -- data and checkpoints included

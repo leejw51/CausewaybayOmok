@@ -16,7 +16,8 @@ make install      # torch + numpy (+ mlx on Apple Silicon)
 make info         # model size, backend, measured speed, expected training time
 make train        # run the loop; Ctrl-C is safe, `make resume` picks it up
 make export       # CoreML .mlpackage for the iOS / macOS game
-make play         # play against it in the terminal
+make gui          # play against it in a window (Arcade)
+make play         # ... or in the terminal
 ```
 
 ## What `make info` tells you
@@ -129,6 +130,39 @@ make tail         # follow the log
 make stop         # SIGTERM -> it checkpoints, then exits
 ```
 
+## Playing against it (`make gui`)
+
+```bash
+make install-gui                 # arcade, only needed for this
+make gui                         # you are black, the run's best model is white
+make gui COLOR=white SIMS=400    # stronger opponent, you play white
+make gui COLOR=none              # watch the engine play itself
+make gui PRESET=tiny RUN=runs/smoke
+```
+
+The window loads the same checkpoint everything else uses
+(`runs/<name>/checkpoints/best.npz`, or `--model some.npz`) through the usual
+backend selection, so it runs on CUDA, MLX, MPS or CPU unchanged. Search runs on
+a worker thread and is cancellable, so the board stays responsive while the
+engine thinks and an undo takes effect immediately.
+
+| Key | |
+| --- | --- |
+| click | place a stone |
+| `space` | make the engine move now for the side to play |
+| `h` | hint: search the current position without playing it |
+| `a` | toggle the candidate-move overlay |
+| `u` | undo (your move and the reply) |
+| `n` | new game |
+| `s` | cycle black / white / engine-vs-engine / two humans |
+| `p` | pause the engine |
+| `1` `2` `3` `4` | difficulty: 24 / 100 / 320 / 900 simulations per move |
+| `q` `esc` | quit |
+
+The side panel shows the loaded model and backend, an evaluation bar from
+black's point of view, the search's top candidate moves with their visit
+shares, and how fast the last search ran.
+
 ## Using the model in the game (iPhone / Mac)
 
 `make export` writes `OmokNet.mlpackage` plus `model_meta.json` describing the
@@ -185,6 +219,9 @@ rather write your own Metal/Accelerate inference.
 | `omok/checkpoint.py` | atomic, backend-portable checkpoints |
 | `omok/export.py` | CoreML / ONNX / npz export |
 | `omok/report.py` | model size, benchmarks, time estimates |
+| `omok/engine.py` | the search on a worker thread, for interactive play |
+| `omok/gui.py` | the Arcade window: board, side panel, input |
+| `omok/play.py` | terminal play + model loading shared with the GUI |
 | `omok/cli.py` | the `python3 -m omok ...` command line |
 
 Checkpoints are plain `.npz` files of PyTorch-named NCHW arrays, so a model
@@ -195,6 +232,6 @@ that (`test_torch_and_mlx_agree_on_the_same_weights`).
 
 ```bash
 make install-dev
-make test        # 52 tests, ~6 seconds
+make test        # 60 tests, ~9 seconds
 make smoke       # full loop end to end on a 9x9 board
 ```
