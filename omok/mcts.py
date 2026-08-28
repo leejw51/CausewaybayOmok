@@ -19,7 +19,12 @@ from .encode import encode_batch
 
 
 class Node:
-    __slots__ = ("P", "N", "W", "children", "expanded", "terminal", "visits", "value")
+    # `legal`/`bias`/`nf`/`unvisited` and the two scratch buffers exist purely to
+    # keep `Tree.select_action` cheap: it runs tens of thousands of times per
+    # search and every avoided array allocation shows up in the profile.
+    __slots__ = ("P", "N", "W", "children", "expanded", "terminal", "visits", "value",
+                 "legal", "bias", "nf", "unvisited", "q_buf", "u_buf",
+                 "w_sum", "p_explored")
 
     def __init__(self) -> None:
         self.P: np.ndarray | None = None
@@ -30,6 +35,14 @@ class Node:
         self.terminal = False
         self.visits = 0
         self.value = 0.0
+        self.legal: np.ndarray | None = None
+        self.bias: np.ndarray | None = None
+        self.nf: np.ndarray | None = None
+        self.unvisited: np.ndarray | None = None
+        self.q_buf: np.ndarray | None = None
+        self.u_buf: np.ndarray | None = None
+        self.w_sum = 0.0
+        self.p_explored = 0.0
 
     def expand(self, priors: np.ndarray, legal: np.ndarray) -> None:
         action_size = len(priors)
@@ -41,6 +54,17 @@ class Node:
         self.P = masked / max(total, 1e-8)
         self.N = np.zeros(action_size, dtype=np.int32)
         self.W = np.zeros(action_size, dtype=np.float32)
+        # A node's position never changes, so its legal moves never change:
+        # cache the mask instead of recomputing it on every descent, and keep
+        # it as an additive 0 / -inf bias so scoring stays one vectorised add.
+        self.legal = legal
+        self.bias = np.where(legal, 0.0, -np.inf)
+        self.nf = np.zeros(action_size, dtype=np.float64)
+        self.unvisited = np.ones(action_size, dtype=np.float64)
+        self.q_buf = np.empty(action_size, dtype=np.float64)
+        self.u_buf = np.empty(action_size, dtype=np.float64)
+        self.w_sum = 0.0
+        self.p_explored = 0.0
         self.expanded = True
 
     def q_values(self) -> np.ndarray:
@@ -62,24 +86,37 @@ class Tree:
         self._pending_node: Node | None = None
 
     # -- tree walking ------------------------------------------------------
-    def select_action(self, node: Node, legal: np.ndarray) -> int:
-        assert node.P is not None and node.N is not None and node.W is not None
-        total = max(node.visits, 1)
-        parent_q = node.W.sum() / total if node.visits > 0 else 0.0
-        explored = float(node.P[node.N > 0].sum())
-        fpu = parent_q - self.cfg.fpu_reduction * math.sqrt(max(explored, 0.0))
-        q = np.where(node.N > 0, node.W / np.maximum(node.N, 1), fpu)
-        u = self.cfg.c_puct * node.P * (math.sqrt(total) / (1.0 + node.N))
-        scores = q + u
-        scores[~legal] = -np.inf
-        return int(np.argmax(scores))
+    def select_action(self, node: Node) -> int:
+        """PUCT: argmax over Q + U, with unvisited children held at the FPU.
+
+        Identical arithmetic to the obvious formulation, but `w_sum` and
+        `p_explored` are maintained by `backup` rather than re-reduced here,
+        and the intermediates land in the node's own scratch buffers.
+        """
+        assert node.nf is not None and node.W is not None and node.P is not None
+        visits = node.visits
+        total = visits if visits > 0 else 1
+        parent_q = node.w_sum / visits if visits > 0 else 0.0
+        fpu = parent_q - self.cfg.fpu_reduction * math.sqrt(max(node.p_explored, 0.0))
+
+        nf, q, u = node.nf, node.q_buf, node.u_buf
+        np.maximum(nf, 1.0, out=q)
+        np.divide(node.W, q, out=q)          # Q, and exactly 0 where unvisited
+        np.add(nf, 1.0, out=u)
+        np.divide(node.P, u, out=u)
+        u *= self.cfg.c_puct * math.sqrt(total)
+        q += u
+        if fpu != 0.0:                        # unvisited children sit at the FPU
+            q += node.unvisited * fpu
+        q += node.bias                        # -inf on illegal moves
+        return int(np.argmax(q))
 
     def descend(self) -> tuple[Node, Board, list[tuple[Node, int]]]:
         node = self.root
         board = self.board.copy()
         path: list[tuple[Node, int]] = []
         while node.expanded and not node.terminal:
-            action = self.select_action(node, board.legal_mask())
+            action = self.select_action(node)
             path.append((node, action))
             board.play(action)
             child = node.children.get(action)
@@ -98,8 +135,14 @@ class Tree:
         sign = -1.0  # the leaf value is from the leaf mover's point of view
         for node, action in reversed(path):
             assert node.N is not None and node.W is not None
+            if node.N[action] == 0:           # first visit: this child is now explored
+                node.unvisited[action] = 0.0
+                node.p_explored += float(node.P[action])
             node.N[action] += 1
-            node.W[action] += sign * value
+            node.nf[action] += 1.0
+            delta = sign * value
+            node.W[action] += delta
+            node.w_sum += delta
             node.visits += 1
             sign = -sign
 
