@@ -2,7 +2,14 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
-runs/
+runs/*
+# ...except the shipped model (make game / make play load it)
+!runs/base/
+runs/base/*
+!runs/base/checkpoints/
+runs/base/checkpoints/*
+!runs/base/checkpoints/best.npz
+!runs/base/checkpoints/best.json
 assets_raw/
 *.mlpackage/
 *.onnx
