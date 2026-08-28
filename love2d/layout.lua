@@ -43,8 +43,9 @@ end
 
 local function panelDepth(ui, height)
     -- Portrait's panel is a strip: it is measured by what has to stack inside
-    -- it, which is a title, four rows of buttons and the air around them.
-    local wanted = math.max(120 * ui, math.min(150 * ui, math.floor(height * 0.26)))
+    -- it, which is the taller of its two columns -- the heading, the turn, the
+    -- evaluation and the difficulty row -- and the air around them.
+    local wanted = math.max(136 * ui, math.min(165 * ui, math.floor(height * 0.28)))
     return math.min(wanted, math.floor(height * 0.42))
 end
 
@@ -135,19 +136,25 @@ end
 -- Everything in the panel is a multiple of the scale, so its requirements are
 -- too, and these two numbers are those multiples.
 --
--- The height is the sum of the blocks in `drawPanel`, in order: title 44, turn
--- 20, evaluation 40, difficulty 44, actions 70, keys 9, and 8 for the padding
--- above and below.  MOVES is left out deliberately -- it is the one block that
+-- The height is the sum of the blocks in `drawPanel`, in order: title 22, turn
+-- 20, evaluation 27, difficulty 48, actions 86, keys 9, and 8 for the padding
+-- above and below.  (A button is the text plus five units of air either side,
+-- which is what makes the difficulty and action rows the size they are.)  At
+-- 220 units, size 3 fits a 720-pixel window and size 4 needs about 950.  MOVES is left out deliberately -- it is the one block that
 -- stands down when there is nothing left for it, which is what makes it the one
 -- block that does not get a say in how large the text can be.
 --
 -- The width is the widest row in a column: three view buttons side by side,
 -- whose longest label is six characters at seven pixels each, plus the gaps.
 --
+-- Portrait's height is its left column -- title 22, turn 20, evaluation 27,
+-- difficulty 48 -- with the keys and the padding: 134.  The right column,
+-- actions 86 and whatever moves fit under them, is shorter by design.
+--
 -- Both are estimates and cheap ones on purpose: they decide when to step the
 -- text down a size, and being a few pixels out changes nothing.  A block added
 -- to `drawPanel` belongs in the sum.
-local NEEDS_H_LANDSCAPE, NEEDS_H_PORTRAIT = 235, 101
+local NEEDS_H_LANDSCAPE, NEEDS_H_PORTRAIT = 220, 134
 local NEEDS_W = 130
 
 --- The frame for this window at the largest text size that actually fits.
@@ -164,7 +171,7 @@ function layout.fit(width, height, boardCells, forced, wanted)
     while scale > 1 do
         local pad = scale * 4
         local inner = frame.panel.width - pad * 2
-        local column = frame.portrait and math.floor((inner - pad * 2) / 3) or inner
+        local column = frame.portrait and math.floor((inner - pad) / 2) or inner
         local needs = frame.portrait and NEEDS_H_PORTRAIT or NEEDS_H_LANDSCAPE
         if needs * scale <= frame.panel.height and NEEDS_W * scale <= column then
             break

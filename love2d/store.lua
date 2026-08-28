@@ -14,9 +14,9 @@
 -- keys it names, so the last word on any setting wins.
 --
 --     {"orientation":"landscape"}
---     {"text_size":3}
+--     {"text_scale":3}
 --     {"window":"window"}
---     {"text_size":2}
+--     {"text_scale":2}
 --
 -- Which is worth the small strangeness of storing four values in a growing
 -- file, for two reasons.  Appending never reads first, so two things changing a

@@ -52,15 +52,37 @@ RETRO = ("16-bit pixel art in the style of a 1993 SNES or Amiga game, chunky vis
          "limited palette, dithered gradients, crisp pixel-perfect shapes. ")
 
 PROMPTS = {
+    # The game's backdrop.  The Astronomical Clock is the subject rather than
+    # a thing on the left: it is the one landmark on the square everybody
+    # knows, and the panel and board cover most of the width anyway, so what
+    # survives in the gaps has to be the clock.
     "backdrop":
         RETRO +
-        "Wide scenic background of Old Town Square in Prague at dusk. The Astronomical Clock "
-        "tower with its blue and gold astrolabe dial stands on the left; the twin gothic spires "
-        "of the Tyn Church rise on the right against a deep indigo sky with a few pixel stars. "
-        "Rows of pastel baroque facades, glowing amber windows, warm street lamps casting light "
-        "pools on cobblestones. Rich saturated colours, strong dithering in the sky gradient, "
-        "dark enough overall that bright sprites read clearly on top. No people, no text, "
-        "no watermark, no user interface.",
+        "Wide scenic background of Old Town Square in Prague at dusk, centred on the famous "
+        "Prague Astronomical Clock (the Orloj) on the Old Town Hall tower. The clock is large "
+        "and clearly legible in the middle of the frame: the big blue and gold astrolabe dial "
+        "with its golden zodiac ring and ornate hands, the painted calendar dial below it, the "
+        "gilded stone gothic tower rising above with a pointed roof. The twin gothic spires of "
+        "the Tyn Church stand further back on the right against a deep indigo night sky with a "
+        "few pixel stars. Pastel baroque facades either side, glowing amber windows, warm "
+        "street lamps casting pools of light on wet cobblestones in the foreground. Rich "
+        "saturated colours, strong dithering in the sky gradient, dark enough overall that "
+        "bright sprites read clearly on top. No people, no text, no watermark, no user "
+        "interface.",
+    # The title screen's picture: the dial itself, close, as the thing the
+    # logo is set against.  A landmark drawn at a distance is scenery; drawn
+    # this close it is the game's face.
+    "title":
+        RETRO +
+        "Close-up of the Prague Astronomical Clock at night filling the frame: the great blue "
+        "and gold astrolabe dial in the centre with its golden zodiac ring, roman numerals, "
+        "ornate gilded hands and the small golden sun and moon, the gothic stone tower wall "
+        "and carved statues around it, the painted calendar dial just visible below. Lit by "
+        "warm amber lamplight from below against a deep indigo night sky with a few pixel "
+        "stars at the top. Rich saturated blue, gold and amber, heavy ordered dithering, "
+        "symmetrical composition with the dial centred and the upper third of the frame "
+        "quieter and darker so a title can be printed over it. No people, no text, no "
+        "watermark, no user interface.",
     "board":
         RETRO +
         "Seamless tileable texture of a warm honey-golden wooden table top seen from directly "
@@ -110,7 +132,8 @@ def pixelate(image: Image.Image, width: int, height: int, colours: int) -> Image
     return small.quantize(colors=colours, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
 
 
-def scenic(image: Image.Image, width: int, height: int, colours: int) -> Image.Image:
+def scenic(image: Image.Image, width: int, height: int, colours: int,
+           dim: float = 0.62) -> Image.Image:
     """Crop to the window's aspect, pixelate, and knock the brightness back."""
     target = width / height
     if image.width / image.height > target:
@@ -126,7 +149,7 @@ def scenic(image: Image.Image, width: int, height: int, colours: int) -> Image.I
     # The backdrop sits behind everything, so it is dimmed here rather than by
     # drawing a scrim over it every frame; the blue lift keeps it reading as
     # dusk instead of as a flat grey wash.
-    pixels *= 0.62
+    pixels *= dim
     pixels[..., 2] = np.clip(pixels[..., 2] * 1.10, 0.0, 1.0)
     dimmed = Image.fromarray((pixels * 255).astype(np.uint8))
     return pixelate(dimmed, width, height, colours)
@@ -188,6 +211,9 @@ def glow_sprite(image: Image.Image, size: int, colours: int = 12) -> Image.Image
 # numbers with a nearest-neighbour filter, so these stay crisp rather than soft.
 PROCESS = {
     "backdrop": lambda im: scenic(im, 480, 300, 64),
+    # Brighter than the backdrop: nothing sits on it but the logo and a menu,
+    # and the dial is the point of the screen.
+    "title": lambda im: scenic(im, 480, 300, 64, dim=0.80),
     "board": lambda im: pixelate(im, 128, 128, 16),
     "stone_black": lambda im: round_sprite(im, 32, True, trim=0.92, colours=8),
     "stone_white": lambda im: round_sprite(im, 32, False, trim=0.96, colours=8),
