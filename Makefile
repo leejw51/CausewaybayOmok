@@ -55,7 +55,8 @@ help: ## Show this help
 	@echo "  PRESET=$(PRESET)     tiny | blitz | small | fast | base | strong"
 	@echo "  RUN=$(RUN)   where this run's data/checkpoints live"
 	@echo "  ITERS=          how many MORE iterations to run, counted from the"
-	@echo "                  iteration saved in state.json; empty = preset default."
+	@echo "                  iteration saved in state.json; empty = train to the"
+	@echo "                  target's milestone (make train stops at iteration 200)."
 	@echo "                  Ctrl-C / make stop is always safe: make resume continues."
 	@echo "  GAMES=$(GAMES)        games for selfplay / arena"
 	@echo "  STEPS=$(STEPS)       optimisation steps for fit"
@@ -67,6 +68,8 @@ help: ## Show this help
 	@echo "  make train-fast                   # ~10 min: check the whole flow works"
 	@echo "  make train-average                # ~30 min: a real but quick run"
 	@echo "  make train-casual                 # train until it beats a casual human"
+	@echo "  make train                        # ~3.5h: beats casual players every game"
+	@echo "  make train-strong                 # ~8.5h: much stronger than make train"
 	@echo "  make train-to TO=300              # train until iteration 300 (absolute)"
 	@echo "  make train ITERS=200              # 200 MORE iterations, then stop"
 	@echo "  make train PRESET=small ITERS=20  # quick run with the small net"
@@ -171,10 +174,18 @@ status: ## What is on disk for this run (iteration, data, checkpoints)
 	$(OMOK) status $(COMMON)
 
 # ----------------------------------------------------------------- training
-train: ## Run the self-play -> train -> gate loop (resumes automatically)
-	$(OMOK) train $(COMMON) $(if $(ITERS),--iterations $(ITERS),)
+# `make train` is a strength milestone: iteration 200 is well past the casual
+# level (iteration 60) and reliably beats human players in a normal game.
+# ITERS= keeps the old additive behaviour (N more iterations, then stop).
+train: ## Train to iteration 200 (~3.5h on RTX 5070): beats casual players every game
+ifeq ($(ITERS),)
+	@$(MAKE) --no-print-directory train-to TO=200
+else
+	$(OMOK) train $(COMMON) --iterations $(ITERS)
+endif
 
-resume: train ## Alias for train: every run continues from the saved state
+resume: ## Continue this run from the saved state (ITERS= to add more)
+	$(OMOK) train $(COMMON) $(if $(ITERS),--iterations $(ITERS),)
 
 # Milestone targets train UP TO an absolute iteration (idempotent: already
 # past it means nothing to do), unlike ITERS= which always adds more.
@@ -202,13 +213,13 @@ train-basic: ## Train to iteration 10 (~10m on RTX 5070): plays legally, blocks 
 train-casual: ## Train to iteration 60 (~1h on RTX 5070): a real game of omok
 	@$(MAKE) --no-print-directory train-to TO=60
 
-train-strong: ## Train to iteration 200 (~3.5h on RTX 5070): hard to beat without study
-	@$(MAKE) --no-print-directory train-to TO=200
+train-strong: ## Train to iteration 500 (~8.5h on RTX 5070): much stronger than make train
+	@$(MAKE) --no-print-directory train-to TO=500
 
 train-full: ## Train to iteration 1000 (~17h on RTX 5070): the full run
 	@$(MAKE) --no-print-directory train-to TO=1000
 
-train-bg: ## Same as `train` but in the background, logging to $(OUTLOG)
+train-bg: ## Train in the background (ITERS= or preset default), logging to $(OUTLOG)
 	@mkdir -p $(RUN)/logs
 	@nohup $(OMOK) train $(COMMON) $(if $(ITERS),--iterations $(ITERS),) \
 	  >> $(OUTLOG) 2>&1 & echo $$! > $(PIDFILE)
