@@ -289,17 +289,24 @@ taking a move back abandons the search instead of waiting for it.
 
 ### The LÖVE game (`make game`)
 
-"Causewaybay Omok" — Prague's Old Town Square at dusk, in 16-bit pixel art.
+"Causewaybay Omok" — the Astronomical Clock on Prague's Old Town Square at
+dusk, in 16-bit pixel art, with the chrome of a 1991 console.
 
 ```bash
 make game            # a window
 make game-portrait   # started in a portrait window
 ```
 
-Click or use the arrow keys, `SPACE` to place, `U` undo, `H` hint, `N` new
-game, `1`-`5` difficulty, `TAB` to swap colours, `W` to watch, `V` to turn the
-board, `S` for the text size, `M` to mute and `F11` for fullscreen. Every key
-has a button in the panel beside it.
+It opens on a title screen: the clock's dial, the name over it, and a menu —
+**START**, **WATCH THE MODEL**, which colour you play and the level, adjusted in
+place with the left and right keys — with a spinning stone for a cursor.
+`SPACE` or a click starts; `ESC` on the board comes back here (the game is kept,
+and **CONTINUE** appears at the top of the menu), `ESC` on the title quits.
+
+On the board: click or use the arrow keys, `SPACE` to place, `U` undo, `H`
+hint, `N` new game, `1`-`5` difficulty, `TAB` to swap colours, `W` to watch,
+`V` to turn the board, `S` for the text size, `M` to mute and `F11` for
+fullscreen. Every key has a button in the panel beside it.
 
 The game opens fullscreen — it is a board that wants every pixel it can have
 and an interface drawn at console sizes, and neither is served by a window
@@ -308,11 +315,70 @@ first frame, comes back out.
 
 The last row of the panel is the window rather than the game: **TALL/WIDE**
 turns the board, **FULL/WINDOW** fills the screen, and **SIZE** steps the whole
-interface through four sizes. The first two are plain toggles — press, and it
+interface through five sizes. The first two are plain toggles — press, and it
 stays pressed, through a drag, a fullscreen and the next time the game opens.
 The size is a preference rather than an instruction: a window too small to hold
 the size asked for gets the largest one it *can* hold, and the one asked for
-comes back on its own when the window grows.
+comes back on its own when the window grows. It starts at 3 — a button you can
+press rather than a caption with a border — and at 4 on a display 1300 pixels
+or taller; 3 fits any window from 720 pixels high, in either arrangement.
+
+### Shipping it (`make app`)
+
+```bash
+make package      # release core + signed .app; the zip and SHA256SUMS in dist/
+make notarize     # send it to Apple and staple the ticket (needs credentials)
+make dist         # refresh dist/ with the stapled bundle
+make gatekeeper   # assess it the way Finder will
+```
+
+`make package` is `make app` — the build below — followed by `make dist`,
+which copies the zip to `dist/CausewaybayOmok-<version>-<arch>-apple-darwin.zip`
+beside a `SHA256SUMS`. `make app` produces a double-clickable macOS app for a person who has never
+heard of LÖVE, Python or this repository: LÖVE 11.5 is downloaded and the
+game, the Rust/MLX core, its Metal kernels and the `base` model are embedded
+in it. Inside the bundle the core is `Contents/Frameworks/OmokAI.framework`
+(the dylib, with `mlx.metallib` in its `Resources` — the dylib has the build
+tree's kernel path compiled in, and MLX looks beside the dylib when that path
+does not exist, which on any other machine it does not) and the model is
+`Contents/Resources/model/best.npz`. `lua/omok/init.lua` looks in those two
+places first when the game is fused, so a double-click needs no `OMOK_LIB` or
+`OMOK_MODEL`. `MODEL=runs/strong/checkpoints/best.npz make app` ships a
+different network.
+
+The bundle is signed with a Developer ID from the keychain when there is one
+and ad-hoc otherwise, with the entitlements LuaJIT needs under the hardened
+runtime (`allow-jit`, `allow-unsigned-executable-memory`) and
+`disable-library-validation` so LÖVE may load a dylib Apple did not see
+signed by LÖVE's authors. Then it is *started*: the smoke test opens the
+bundle in a window, lets the engine play itself for two seconds and captures
+a frame, which a bundle that cannot find its library, its kernels or its
+model never produces. `SKIP_SMOKE=1` skips that on a machine with no display.
+
+Signing is not enough to hand the app to somebody else: since macOS 10.15 a
+downloaded app must also be notarised, or Finder says "Apple could not
+verify…". `make notarize` does that with `APPLE_ID`, `APPLE_PASSWORD` (an
+app-specific one) and `APPLE_TEAM_ID` in the environment, and staples the
+ticket so Gatekeeper can check it offline.
+
+A release does all of this on GitHub's macOS runner. Tag `main` with the
+version of record — `make version`, which prints the number only once
+`rust/Cargo.toml` and `omok/__init__.py` agree on it — and push the tag:
+
+```bash
+git tag v$(make version) && git push origin v$(make version)
+```
+
+`.github/workflows/release.yml` refuses a tag that disagrees with `make
+version`, imports the Developer ID certificate from the repository secrets
+(`MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`), runs `make
+package`, `make notarize` (`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
+`TEAM_ID`) and `make dist`, and attaches `CausewaybayOmok-<version>-arm64-apple-darwin.zip` with its
+`SHA256SUMS` to a GitHub release. Without the secrets — a fork — the same
+workflow still builds an ad-hoc-signed bundle as a dry run, and *Run workflow*
+on the Actions tab builds one from any branch without releasing it. The app
+icon is `love2d/icon.png`, drawn from the board and the stones by `make
+love-icon`; the LÖVE download is cached in `love2d/build/` between runs.
 
 ### What it remembers, and where
 
@@ -330,8 +396,8 @@ JSON Lines, and a line is only ever appended; the file is read from the top with
 each line overwriting the keys it names, so the last word on any setting wins:
 
 ```json
-{"orientation":"landscape","text_size":2,"window":"full"}
-{"text_size":3}
+{"orientation":"landscape","text_scale":2,"window":"full"}
+{"text_scale":3}
 {"sound":"off"}
 ```
 
@@ -356,7 +422,10 @@ The panel is measured in characters rather than in pixels, so the text size
 moves everything in step: turn it up and the panel widens, the buttons and bars
 grow with it and the board takes what is left. `layout.fit` is where that
 settles — it steps the size down until the panel can hold the blocks that cannot
-stand down, which is why the controls never fall off the bottom of it.
+stand down, which is why the controls never fall off the bottom of it. In
+portrait the panel is two columns — the game and its numbers on the left, the
+controls and the last moves on the right — because a third of a 900-pixel
+window will not hold a row of three buttons at that size.
 
 Everything that moves goes through `love2d/effects.lua` — the Penner easing
 curves, a tween type, particle bursts and trails, expanding shockwaves, floating
@@ -385,7 +454,10 @@ while the model thinks, and the backdrop drifts against the pointer.
 ### The art
 
 `tools/make_love2d_assets.py` holds the prompts and the processing, so the art
-is reproducible rather than a chat log:
+is reproducible rather than a chat log. Two of the pictures are the Prague
+Astronomical Clock: `backdrop.png`, the Old Town Square with the Orloj tower in
+the middle, behind the board; and `title.png`, the astrolabe dial close up,
+behind the title screen's logo and menu.
 
 ```bash
 export XAI_API_KEY=...
@@ -556,6 +628,9 @@ The Rust core and the two clients that play the trained model:
 | `love2d/assets/font.png` | the bitmap font (see `tools/make_love2d_font.py`) |
 | `love2d/assets/` | Grok-generated pixel art (see `tools/make_love2d_assets.py`) |
 | `love2d/assets/sfx/` | 8-bit sound effects (see `tools/make_love2d_sfx.py`) |
+| `love2d/icon.png` | the app icon (see `tools/make_love2d_icon.py`) |
+| `love2d/Makefile` | `make app`: the game, the core and the model as a signed macOS app |
+| `.github/workflows/release.yml` | a tag `v<version>` on `main` → notarised app on a GitHub release |
 
 Checkpoints are plain `.npz` files of PyTorch-named NCHW arrays, so a model
 trained on a CUDA machine resumes on a Mac and vice versa — there is a test for

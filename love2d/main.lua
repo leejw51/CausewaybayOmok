@@ -77,13 +77,22 @@ local LEVELS = {
 local art = {}
 local font
 local S = {
+    -- "title" or "game".  The game opens on its title screen, the way a
+    -- console did, and the menu there is what starts a game; ESC comes back.
+    screen = "title",
+    menu = 1,              -- the selected row of the title menu
+    menuRows = {},         -- where the rows were drawn, for the mouse
+    resumable = false,     -- a game was left mid-way and CONTINUE is offered
     level = 2,
     -- How big the interface is drawn, and how big it was asked to be.  They
     -- differ when the window is too small to hold the size that was asked for:
     -- see `refreshLayout`.  `ui` is what everything measures itself against;
     -- `uiWanted` is the preference, and it is what gets remembered.
-    ui = 2,
-    uiWanted = 2,
+    --
+    -- Three, not two: at two the buttons were the size of a fingernail on any
+    -- display made this decade.  `loadSettings` goes one higher on a tall one.
+    ui = 3,
+    uiWanted = 3,
     human = omok.BLACK,
     watch = false,
     time = 0,
@@ -145,7 +154,7 @@ end
 --
 -- Whole numbers only.  A fractional scale puts glyph edges between pixels,
 -- which is exactly the softness a bitmap font is chosen to avoid.
-local UI_MIN, UI_MAX = 1, 4
+local UI_MIN, UI_MAX = 1, 5
 
 --- The character cell, the line, and the unit everything else is spaced by.
 local function ch() return font:getHeight() * S.ui end
@@ -171,7 +180,14 @@ local function text(str, x, y, scale, colour, align, width, opts)
 
     if opts.outline then
         love.graphics.setColor(0, 0, 0, opts.outlineAlpha or 1)
-        for _, d in ipairs({{-scale, 0}, {scale, 0}, {0, -scale}, {0, scale}}) do
+        -- `thick` closes the corners too.  Four copies leave a notch at every
+        -- corner that is one scaled pixel wide, which is invisible at the
+        -- panel's size and a row of teeth along a logo drawn at ten.
+        local ring = opts.thick
+            and {{-scale, 0}, {scale, 0}, {0, -scale}, {0, scale},
+                 {-scale, -scale}, {scale, -scale}, {-scale, scale}, {scale, scale}}
+            or {{-scale, 0}, {scale, 0}, {0, -scale}, {0, scale}}
+        for _, d in ipairs(ring) do
             love.graphics.print(str, x + d[1], y + d[2], 0, scale, scale)
         end
     elseif opts.shadow then
@@ -306,7 +322,10 @@ end
 local function saveSettings()
     store.write({
         orientation = S.orientation or "auto",
-        text_size = S.uiWanted,
+        -- `text_scale`, not the old `text_size`: the sizes were renumbered
+        -- when the default went up, and a file that still says 2 from the days
+        -- when 2 was the default is not a preference for small text.
+        text_scale = S.uiWanted,
         window = love.window.getFullscreen() and "full" or "window",
     })
 end
@@ -317,8 +336,15 @@ local function loadSettings()
     if saved.orientation == "portrait" or saved.orientation == "landscape" then
         S.orientation = saved.orientation
     end
-    S.uiWanted = math.max(UI_MIN,
-                          math.min(UI_MAX, tonumber(saved.text_size) or S.uiWanted))
+    -- Nothing saved: size the text to the display it opened on, so the first
+    -- frame is legible from a sofa on a big screen and still fits a laptop.
+    -- Once a size has been chosen it is the choice that counts.
+    local wanted = tonumber(saved.text_scale)
+    if not wanted then
+        local _, h = love.graphics.getDimensions()
+        wanted = h >= 1300 and 4 or S.uiWanted
+    end
+    S.uiWanted = math.max(UI_MIN, math.min(UI_MAX, wanted))
     S.ui = S.uiWanted
 
     -- The window mode cannot be restored in `conf.lua` -- that runs before
@@ -795,9 +821,14 @@ local function button(id, label, x, y, w, h, action, active, silent)
     return hot
 end
 
---- How tall a button is: the text, and three scaled pixels of air either side.
+--- How tall a button is: the text, and five scaled pixels of air either side.
+--
+-- Five rather than three, because a button is a thing to press and three left
+-- the label filling it edge to edge -- a caption with a border, not a key.  The
+-- panel's height budget in `layout.fit` is the sum of these; change one, change
+-- the other.
 local function buttonHeight()
-    return ch() + unit() * 6
+    return ch() + unit() * 10
 end
 
 local function drawButtons()
@@ -1120,19 +1151,12 @@ local function column(x, y, w)
     }
 end
 
---- The title, as a console would have set it: the long word small, the short
--- one large, and both knocked out in black so they hold against the lit
--- backdrop showing behind the panel.
+--- The name, on one line.  The logo proper is on the title screen now; in
+-- the panel it is a heading, and a heading that took four lines was what kept
+-- the text a size smaller than it could be in any window under 900 pixels.
 local function blockTitle(c)
     local u = unit()
-    text("CAUSEWAYBAY", c.x, c:room(ch() + u), S.ui, P.gold, nil, nil, {outline = true})
-    local big = S.ui * 2
-    local y = c:room(font:getHeight() * big + u * 2)
-    -- Drawn twice, the upper copy paler: two flat colours making one bevelled
-    -- letter, which is the whole of how a 16-bit logo was ever shaded.
-    text("OMOK", c.x, y, big, P.gold, nil, nil, {outline = true})
-    text("OMOK", c.x, y - u, big, P.brightGold)
-    c:gap(2)
+    text("CAUSEWAYBAY OMOK", c.x, c:room(ch() + u), S.ui, P.gold, nil, nil, {outline = true})
     text(S.engineLine, c.x, c:room(lh()), S.ui, P.dim)
 end
 
@@ -1211,10 +1235,7 @@ local function blockEval(c)
     end
     -- The middle, so a reading of nothing still has something to be nothing at.
     fill(P.cream, c.x + u * 2 + half * segW - 1, y + u, 1, h + u * 2, 0.5)
-
-    c:gap(1)
-    text("FOR SIDE TO MOVE", c.x, c:room(lh()), S.ui, P.dim)
-    c:gap(1)
+    c:gap(2)
 end
 
 local function blockLevel(c)
@@ -1298,11 +1319,11 @@ end
 -- clipping the last key off the end is worse than printing it tersely.
 local function drawKeyHints(x, y, width)
     local hints = {
-        "SPACE PLACE  U UNDO  H HINT  N NEW  V TURN  S SIZE  M MUTE  F11 FULL",
-        "SPACE  U UNDO  H HINT  N NEW  V TURN  S SIZE  M MUTE",
-        "SPACE  U  H  N  V  S  M  F11",
-        "SPACE U H N V S M F11",
-        "U H N V S M F11",
+        "SPACE PLACE  U UNDO  H HINT  N NEW  V TURN  S SIZE  M MUTE  ESC TITLE",
+        "SPACE  U UNDO  H HINT  N NEW  V TURN  S SIZE  M MUTE  ESC",
+        "SPACE  U  H  N  V  S  M  ESC",
+        "SPACE U H N V S M ESC",
+        "U H N V S M ESC",
         "U H N V S M",
     }
     local line = hints[#hints]
@@ -1335,19 +1356,20 @@ local function drawPanel()
     local floor = p.y + p.height - pad - ch()
 
     if S.frame.portrait then
-        -- Three bands across: the game on the left, its numbers in the middle,
-        -- the controls on the right.  A column here is a third of a window
-        -- rather than a quarter of one, which is why the same blocks fit.
-        local colW = math.floor((inner - pad * 2) / 3)
+        -- Two bands across: the game and its numbers on the left, the controls
+        -- and the last few moves on the right.  Two rather than three because
+        -- a third of a 900-pixel window is not wide enough for a row of three
+        -- buttons at the size the text is now, and the size would have stepped
+        -- down to fit -- which is the wrong thing to give up.
+        local colW = math.floor((inner - pad) / 2)
         local a = column(left, top, colW)
         local b = column(left + colW + pad, top, colW)
-        local c = column(left + (colW + pad) * 2, top, colW)
         blockTitle(a)
         blockTurn(a)
-        blockMoves(a, floor - u * 2)
-        blockEval(b)
-        blockLevel(b)
-        blockActions(c)
+        blockEval(a)
+        blockLevel(a)
+        blockActions(b)
+        blockMoves(b, floor - u * 2)
     else
         local a = column(left, top, inner)
         blockTitle(a)
@@ -1416,10 +1438,217 @@ local function drawMessage()
     local tall = font:getHeight() * scale
     local u = unit()
     local y = b.y + b.size + u * 4
-    if y + tall + u * 4 > field.height then y = b.y - tall - u * 6 end
+    -- No room under the board: over its bottom edge, rather than above it,
+    -- where the column letters are.  A line that lasts four seconds may sit on
+    -- the last row of the board; it may not sit on the coordinates.
+    if y + tall + u * 4 > field.height then y = b.y + b.size - tall - u * 6 end
     fill(P.ink, x - u * 3, y - u * 2, width + u * 6, tall + u * 4, 0.78 * alpha)
     fill(P.gold, x - u * 3, y - u * 2, width + u * 6, u, 0.5 * alpha)
     text(message, x, y, scale, {P.cream[1], P.cream[2], P.cream[3], alpha})
+end
+
+-- ------------------------------------------------------------------- title
+
+-- The title screen: the Astronomical Clock, the name over it, and a menu.
+--
+-- A console game opened on a picture and a menu, and this one does the same,
+-- for the same reason: the board is a working screen, and it is a poor place
+-- to be asked which colour to play.  The choices that shape a game -- side,
+-- difficulty, whether to watch -- live here, where they can be read at a
+-- size that suits a title, and the board is reached with them already made.
+
+--- The rows of the menu, built fresh each time because two of them change.
+--
+-- CONTINUE only exists while a game was left mid-way, and the two rows with
+-- a `value` are adjusted in place with the left and right keys rather than
+-- opening anything: a title menu of this era had no second screen to go to.
+local function menuItems()
+    local items = {}
+    if S.resumable then
+        items[#items + 1] = {id = "continue", label = "CONTINUE"}
+    end
+    items[#items + 1] = {id = "start", label = S.resumable and "NEW GAME" or "START"}
+    items[#items + 1] = {id = "watch", label = "WATCH THE MODEL"}
+    items[#items + 1] = {id = "colour", label = "YOU PLAY",
+                         value = S.human == omok.BLACK and "INDIGO" or "AMBER"}
+    items[#items + 1] = {id = "level", label = "LEVEL",
+                         value = ("%d  %s"):format(S.level, level().name)}
+    items[#items + 1] = {id = "quit", label = "QUIT"}
+    return items
+end
+
+local function startGame(watch)
+    S.watch = watch
+    S.screen = "game"
+    S.resumable = false
+    newGame()
+end
+
+--- Back to the title.  The game is kept, so CONTINUE can pick it up; a search
+-- in flight is not, because nothing is waiting for its answer.
+local function goTitle()
+    if S.engine then S.engine:cancel() end
+    S.thinking = nil
+    S.resumable = S.game:moveCount() > 0 and not S.game:isOver()
+    S.screen = "title"
+    S.menu = 1
+    sound.play("flip", {pitch = 0.8})
+end
+
+local function menuMove(step)
+    local n = #menuItems()
+    local before = S.menu
+    S.menu = ((S.menu - 1 + step) % n) + 1
+    if S.menu ~= before then sound.play("blip") end
+end
+
+--- Left and right on a row with a value; the other rows ignore them.
+local function menuAdjust(step)
+    local item = menuItems()[S.menu]
+    if item.id == "colour" then
+        S.human = S.human == omok.BLACK and omok.WHITE or omok.BLACK
+        sound.play("flip", {pitch = S.human == omok.BLACK and 0.9 or 1.1})
+    elseif item.id == "level" then
+        local n = S.level + step
+        if n < 1 then n = #LEVELS elseif n > #LEVELS then n = 1 end
+        setLevel(n)
+    end
+end
+
+local function menuActivate()
+    local item = menuItems()[S.menu]
+    if item.id == "continue" then
+        S.screen = "game"
+        sound.play("press")
+    elseif item.id == "start" then startGame(false)
+    elseif item.id == "watch" then startGame(true)
+    elseif item.id == "quit" then love.event.quit()
+    else menuAdjust(1) end
+end
+
+--- The row of the title menu under a point, or nil.
+local function menuRowAt(x, y)
+    for _, row in ipairs(S.menuRows) do
+        if x >= row.x and x <= row.x + row.w and y >= row.y and y <= row.y + row.h then
+            return row.index
+        end
+    end
+    return nil
+end
+
+local function drawTitle()
+    local w, h = love.graphics.getDimensions()
+    local u = unit()
+
+    -- The dial, covering the window, drifting a little against the pointer and
+    -- on its own, so a title left open is not a still.
+    local picture = art.title
+    local iw, ih = picture:getDimensions()
+    local scale = math.max(w / iw, h / ih) * 1.08
+    local sway = math.sin(S.time * 0.18) * w * 0.012
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(picture, (w - iw * scale) / 2 + S.parallaxX * 0.7 + sway,
+                       (h - ih * scale) / 2 + S.parallaxY * 0.7, 0, scale, scale)
+    -- Darker towards the top and the bottom, where the writing is.
+    fill(P.ink, 0, 0, w, h, 0.22)
+    S.motes:draw(P.gold)
+
+    -- The logo: the long word small, the short one as large as the window
+    -- carries, with the two-flat-colour bevel every 16-bit logo was shaded
+    -- with, a black ring, and a deep-indigo drop under it for weight.
+    local big = 12
+    while big > 3 and (textWidth("OMOK", big) > w * 0.55
+                       or font:getHeight() * big > h * 0.20) do
+        big = big - 1
+    end
+    local small = math.max(2, math.floor(big / 2))
+    local lift = math.sin(S.time * 1.6) * u           -- it breathes
+    local top = math.floor(h * 0.10) + lift
+    text("CAUSEWAYBAY", 0, top, small, P.gold, "center", w, {outline = true, thick = true})
+    local y = top + font:getHeight() * small + small * 4
+    text("OMOK", 0, y + u * 3, big, P.deepIndigo, "center", w, {outline = true, thick = true})
+    text("OMOK", 0, y, big, P.gold, "center", w, {outline = true, thick = true})
+    text("OMOK", 0, y - u, big, P.brightGold, "center", w)
+    y = y + font:getHeight() * big + small * 4
+    text("OLD TOWN SQUARE, PRAGUE", 0, y, S.ui, P.cream, "center", w, {outline = true})
+
+    -- The menu, in a window of its own.  Drawn at one size above the panel's,
+    -- because it is the only thing on the screen to read; capped by what fits
+    -- across the window with the cursor beside it.
+    local items = menuItems()
+    local ms = math.min(S.ui + 1, small)
+    local widest = 0
+    for _, item in ipairs(items) do
+        local line = item.value and (item.label .. "  < " .. item.value .. " >") or item.label
+        widest = math.max(widest, textWidth(line, ms))
+    end
+    while ms > 1 and widest + ms * 30 > w * 0.9 do
+        ms = ms - 1
+        widest = 0
+        for _, item in ipairs(items) do
+            local line = item.value and (item.label .. "  < " .. item.value .. " >") or item.label
+            widest = math.max(widest, textWidth(line, ms))
+        end
+    end
+    local rowH = (font:getHeight() + 6) * ms
+    local cursorRoom = font:getHeight() * ms + ms * 4
+    local pad = ms * 6
+    local boxW = widest + cursorRoom + pad * 2
+    local boxH = rowH * #items + pad * 2
+    local boxX = math.floor((w - boxW) / 2)
+    local boxY = math.floor(math.max(y + lh() * 2, h * 0.52))
+    -- Never below the footer line; a small window drops the menu up instead.
+    boxY = math.min(boxY, h - boxH - lh() * 2 - u * 4)
+
+    -- Its own window: the same hard edge and bevel as the panel, over a face
+    -- that lets the dial through, because the dial is the point of the screen.
+    fill(P.ink, boxX, boxY, boxW, boxH, 0.80)
+    fill(P.bevelLight, boxX + u, boxY + u, boxW - u * 2, u)
+    fill(P.bevelLight, boxX + u, boxY + u, u, boxH - u * 2)
+    fill(P.bevelDark, boxX + u, boxY + boxH - u * 2, boxW - u * 2, u)
+    fill(P.bevelDark, boxX + boxW - u * 2, boxY + u, u, boxH - u * 2)
+    fill(P.gold, boxX, boxY, boxW, u, 0.9)
+    fill(P.gold, boxX, boxY + boxH - u, boxW, u, 0.9)
+
+    S.menuRows = {}
+    local textX = boxX + pad + cursorRoom
+    for i, item in ipairs(items) do
+        local rowY = boxY + pad + (i - 1) * rowH
+        S.menuRows[i] = {x = boxX, y = rowY, w = boxW, h = rowH, index = i}
+        local selected = i == S.menu
+        local pulse = 0.5 + 0.5 * effects.pulse(S.time, 0.8)
+        local colour = selected and {
+            P.gold[1] + (P.brightGold[1] - P.gold[1]) * pulse,
+            P.gold[2] + (P.brightGold[2] - P.gold[2]) * pulse,
+            P.gold[3] + (P.brightGold[3] - P.gold[3]) * pulse,
+        } or P.cream
+        local textY = rowY + (rowH - font:getHeight() * ms) / 2
+        if item.value then
+            -- The arrows only on the selected row: they are an instruction,
+            -- and an instruction on every row is noise.
+            local line = selected and (item.label .. "  < " .. item.value .. " >")
+                                   or (item.label .. "    " .. item.value)
+            text(line, textX, textY, ms, colour, nil, nil, {shadow = true})
+        else
+            text(item.label, textX, textY, ms, colour, nil, nil, {shadow = true})
+        end
+        if selected then
+            -- The cursor is a stone of the colour about to be played -- the
+            -- mushroom beside the menu, in this game's own terms -- spinning.
+            local radius = font:getHeight() * ms / 2
+            drawTurnStone(boxX + pad + radius, rowY + rowH / 2, radius, S.human,
+                          S.time * 2)
+        end
+    end
+
+    -- The footer: the keys on one line, the engine and the year on the other,
+    -- which is where every title screen kept its small print.
+    local keysY = h - lh() * 2 - u * 2
+    text("ARROWS CHOOSE   SPACE SELECT   ESC QUIT", 0, keysY, S.ui,
+         {P.dim[1], P.dim[2], P.dim[3], 0.85}, "center", w, {outline = true})
+    text(S.engineLine or "", u * 6, h - lh(), S.ui, P.dim, nil, nil, {outline = true})
+    text("(C) 2026 CAUSEWAYBAY", 0, h - lh(), S.ui, P.dim, "right", w - u * 6,
+         {outline = true})
 end
 
 -- ------------------------------------------------------------------ love API
@@ -1438,6 +1667,10 @@ function love.load()
                            "spark", "halo"}) do
         art[name] = love.graphics.newImage("assets/" .. name .. ".png")
     end
+    -- The title's picture is allowed to be missing -- a checkout from before
+    -- it was drawn -- in which case the title opens on the square instead.
+    art.title = love.filesystem.getInfo("assets/title.png")
+                and love.graphics.newImage("assets/title.png") or art.backdrop
 
     -- The sound is allowed to be missing -- a checkout without `assets/sfx`, or
     -- a machine with no audio device, plays on in silence -- so this is loaded
@@ -1483,14 +1716,20 @@ function love.load()
 
     loadSettings()
     refreshLayout()
-    newGame()
-    if #sound.missing > 0 then
-        say(("no sound: run  make love-sfx  (%d missing)"):format(#sound.missing))
-    end
+    -- No game yet: the title's menu starts one.  `newGame` also plays the
+    -- start fanfare, which belongs to pressing START rather than to opening.
+    S.cursor = math.floor(S.size / 2) * S.size + math.floor(S.size / 2)
 
     S.shotPath = os.getenv("OMOK_SCREENSHOT")
     S.shotAfter = tonumber(os.getenv("OMOK_SHOT_AFTER") or "") or 6
-    if S.shotPath then S.watch = true end
+    -- A screenshot of the game skips the title, as the smoke test and the
+    -- README's pictures both want the board; `OMOK_SHOT_SCREEN=title` keeps it.
+    if S.shotPath and os.getenv("OMOK_SHOT_SCREEN") ~= "title" then
+        startGame(true)
+    end
+    if #sound.missing > 0 then
+        say(("no sound: run  make love-sfx  (%d missing)"):format(#sound.missing))
+    end
 end
 
 --- Dev aid: `OMOK_SCREENSHOT=path.png love love2d` plays a few moves, grabs a
@@ -1523,6 +1762,18 @@ function love.update(dt)
     sound.update(dt)
     if S.fatal then return end
 
+    -- The pointer moves the picture on both screens.
+    local mx, my = love.mouse.getPosition()
+    local w, h = love.graphics.getDimensions()
+    S.parallaxX = effects.approach(S.parallaxX, (mx / w - 0.5) * -22, 4, dt)
+    S.parallaxY = effects.approach(S.parallaxY, (my / h - 0.5) * -14, 4, dt)
+
+    if S.screen == "title" then
+        S.motes:update(dt, S.time)
+        screenshotHook(dt)
+        return
+    end
+
     if S.introTween then
         if S.introTween:update(dt) then S.introTween = nil end
     end
@@ -1538,13 +1789,6 @@ function love.update(dt)
     S.motes:update(dt, S.time)
 
     S.evalShown = effects.approach(S.evalShown, S.evalTarget, 6, dt)
-
-    -- The backdrop drifts against the pointer, which gives the flat pixel art
-    -- a little depth without moving anything the player is aiming at.
-    local mx, my = love.mouse.getPosition()
-    local w, h = love.graphics.getDimensions()
-    S.parallaxX = effects.approach(S.parallaxX, (mx / w - 0.5) * -22, 4, dt)
-    S.parallaxY = effects.approach(S.parallaxY, (my / h - 0.5) * -14, 4, dt)
 
     -- the engine
     if S.thinking then
@@ -1586,6 +1830,11 @@ function love.draw()
         return
     end
 
+    if S.screen == "title" then
+        drawTitle()
+        return
+    end
+
     drawBackdrop()
     S.motes:draw(P.gold)
 
@@ -1620,6 +1869,15 @@ end
 
 function love.mousemoved(x, y)
     if S.fatal then return end
+    if S.screen == "title" then
+        -- Resting the pointer on a row selects it, and only a new row ticks.
+        local index = menuRowAt(x, y)
+        if index and index ~= S.menu then
+            S.menu = index
+            sound.play("blip")
+        end
+        return
+    end
     local row, col = layout.cellAt(S.frame.board, x, y)
     local was = S.hover
     S.hover = row and (row * S.size + col) or nil
@@ -1633,6 +1891,14 @@ end
 
 function love.mousepressed(x, y, whichButton)
     if S.fatal or whichButton ~= 1 then return end
+    if S.screen == "title" then
+        local index = menuRowAt(x, y)
+        if index then
+            S.menu = index
+            menuActivate()
+        end
+        return
+    end
     for _, b in ipairs(S.buttons) do
         if b.hot then
             if not b.silent then sound.play("press") end
@@ -1659,7 +1925,12 @@ local function moveCursor(dr, dc)
 end
 
 function love.keypressed(key)
-    if key == "escape" then love.event.quit() return end
+    -- ESC steps back the way a console's B button did: from the board to the
+    -- title, and from the title out of the game.
+    if key == "escape" then
+        if S.screen == "game" and not S.fatal then goTitle() else love.event.quit() end
+        return
+    end
     -- The view keys work on the fatal screen too: a window that opened
     -- fullscreen onto "the AI core is not built" still needs a way back out.
     if key == "f11" or (key == "f" and love.keyboard.isDown("lctrl", "lgui")) then
@@ -1671,6 +1942,17 @@ function love.keypressed(key)
     if key == "s" or key == "=" or key == "+" then cycleUiScale(1) return end
     if key == "-" then cycleUiScale(-1) return end
     if S.fatal then return end
+
+    if S.screen == "title" then
+        if key == "up" or key == "k" then menuMove(-1)
+        elseif key == "down" or key == "j" then menuMove(1)
+        elseif key == "left" or key == "h" then menuAdjust(-1)
+        elseif key == "right" or key == "l" then menuAdjust(1)
+        elseif key == "space" or key == "return" then menuActivate()
+        elseif key:match("^[1-5]$") then setLevel(tonumber(key))
+        end
+        return
+    end
 
     if key == "up" or key == "k" then moveCursor(-1, 0)
     elseif key == "down" or key == "j" then moveCursor(1, 0)

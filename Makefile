@@ -39,8 +39,8 @@ OUTLOG := $(RUN)/logs/train.out
         backends train resume train-bg stop tail status selfplay fit arena export \
         export-onnx export-npz play gui assets watch clear clean-run clean distclean \
         train-to train-fast train-average train-basic train-casual train-strong train-full \
-        ai ai-test ai-bench tui game game-portrait love-assets love-sfx love-font \
-        test-lua clean-ai
+        ai ai-test ai-bench tui game game-portrait love-assets love-sfx love-font love-icon \
+        test-lua clean-ai version app package dist notarize gatekeeper clean-app
 
 help: ## Show this help
 	@echo "Omok trainer"
@@ -82,6 +82,11 @@ help: ## Show this help
 	@echo "  make tui                          # play in the terminal (LuaJIT)"
 	@echo "  make game                         # play the LÖVE game"
 	@echo "  make test-lua                     # test the core through its Lua bindings"
+	@echo ""
+	@echo "Shipping the game:"
+	@echo "  make package                      # release build, signed .app, zip + SHA256SUMS in dist/"
+	@echo "  make notarize                     # send it to Apple (needs APPLE_ID etc.), then make dist"
+	@echo "  git tag v\$$(make version) && git push --tags   # CI builds, notarises, releases"
 
 # ----------------------------------------------------------------- setup
 env: ## Show interpreter and available compute backends
@@ -157,6 +162,55 @@ love-font: ## Redraw the game's bitmap font (no API key, no dependencies)
 
 clean-ai: ## Remove the Rust build directory
 	rm -rf rust/target
+
+# ----------------------------------------------------------------- shipping the game
+# The recipe lives in love2d/Makefile so that `make app` on a laptop and a
+# tagged release in CI do the same thing.  A tag `v<version>` is what starts
+# the release workflow, and it refuses a tag that disagrees with `make version`.
+RS_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' rust/Cargo.toml | head -1)
+PY_VERSION := $(shell sed -n 's/^__version__ = "\(.*\)"/\1/p' omok/__init__.py | head -1)
+
+version: ## Print the version rust/Cargo.toml and omok/__init__.py agree on
+	@test -n "$(RS_VERSION)" || { echo "ERROR: no version in rust/Cargo.toml" >&2; exit 1; }
+	@test "$(RS_VERSION)" = "$(PY_VERSION)" || { \
+		echo "ERROR: rust/Cargo.toml is $(RS_VERSION), omok/__init__.py is $(PY_VERSION)" >&2; \
+		exit 1; }
+	@echo "$(RS_VERSION)"
+
+app: ## Build a double-clickable macOS .app of the LÖVE game (love2d/build)
+	@$(MAKE) --no-print-directory -C love2d app
+
+# What a release is made of: the release core (`make ai`, via love2d's `app`),
+# the signed bundle, and the zip under the name the GitHub release uses.
+# `make notarize` re-zips the stapled bundle, so `make dist` alone refreshes
+# dist/ afterwards without building anything again.
+DIST := dist
+ARCH := $(shell uname -m)
+PACKAGE_ZIP := $(DIST)/CausewaybayOmok-$(RS_VERSION)-$(ARCH)-apple-darwin.zip
+
+package: version app dist ## Build the release core and the signed .app; zip + SHA256SUMS in dist/
+
+dist: ## Copy the built .app zip into dist/ under its release name, with SHA256SUMS
+	@test -f love2d/build/CausewaybayOmok-macos.zip \
+	  || { echo "no love2d/build/CausewaybayOmok-macos.zip -- run 'make package'" >&2; exit 1; }
+	@mkdir -p $(DIST)
+	@cp -f love2d/build/CausewaybayOmok-macos.zip $(PACKAGE_ZIP)
+	@cd $(DIST) && shasum -a 256 *.zip > SHA256SUMS
+	@echo "  $(PACKAGE_ZIP)"
+	@cat $(DIST)/SHA256SUMS | sed 's/^/    /'
+
+notarize: ## Notarize and staple the .app (needs APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID)
+	@$(MAKE) --no-print-directory -C love2d notarize
+
+gatekeeper: ## Assess the built .app the way Finder will
+	@$(MAKE) --no-print-directory -C love2d gatekeeper
+
+love-icon: ## Redraw the app icon from the game's art (no API key, no dependencies)
+	$(PY) tools/make_love2d_icon.py
+
+clean-app: ## Remove the built .app, everything staged for it, and dist/
+	@$(MAKE) --no-print-directory -C love2d clean
+	rm -rf $(DIST)
 
 # ----------------------------------------------------------------- checks
 test: ## Run the test suite
