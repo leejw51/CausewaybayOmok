@@ -41,6 +41,9 @@ class Pipeline:
 
         self.backend = make_backend(self.spec, cfg.backend, lr=cfg.train.lr,
                                     weight_decay=cfg.train.weight_decay)
+        # Announce the compute device before anything else: running on the CPU
+        # by accident is the difference between hours and days.
+        self.logger.log("backend", **self.backend.describe())
         self.checkpoints = CheckpointManager(self.paths.checkpoints, cfg.train.keep_last_ckpts)
         meta = self.checkpoints.restore(self.backend)
         if not meta:  # fresh run: deterministic init so a restart reproduces it
@@ -58,6 +61,14 @@ class Pipeline:
                                         "spec": self.spec.to_dict()})
         self.play_backend = self.backend.clone_for_inference()
         self.play_backend.set_weights(self.checkpoints.best().weights())
+        # Where the model that self-play (and `make play` / `make export`) uses
+        # actually lives, and whether it is on disk yet.
+        best_path = os.path.abspath(self.checkpoints.best_path)
+        on_disk = os.path.exists(best_path)
+        self.logger.log("model", path=best_path, saved=on_disk,
+                        size_mb=round(os.path.getsize(best_path) / 1e6, 2) if on_disk else 0.0,
+                        params=self.spec.parameter_count(),
+                        checkpoints=os.path.abspath(self.paths.checkpoints))
         self.trainer = Trainer(cfg, self.backend, self.checkpoints, self.logger,
                                global_step=self.global_step)
 
@@ -142,6 +153,7 @@ class Pipeline:
                         phase=self.state.get("phase", "selfplay"),
                         run_dir=os.path.abspath(self.paths.root))
         began = time.time()
+        recent: list[float] = []  # last few iteration times, for the ETA
         while int(self.state.get("iteration", 0)) < end_iteration:
             if self.killer.stop:
                 break
@@ -158,13 +170,24 @@ class Pipeline:
             if self.killer.stop:
                 self._save_state()
                 break
+            iteration_seconds = time.time() - iteration_started
+            recent.append(iteration_seconds)
+            del recent[:-5]  # average the last few: early iterations are atypical
+            per_iteration = sum(recent) / len(recent)
+            remaining = max(0, end_iteration - (iteration + 1))
+            best_path = os.path.abspath(self.checkpoints.best_path)
             self._save_state(iteration=iteration + 1, phase="selfplay",
                              train_target_step=None,
-                             last_iteration_seconds=round(time.time() - iteration_started, 1))
+                             last_iteration_seconds=round(iteration_seconds, 1))
             self.logger.log("iteration.done", iteration=iteration,
-                            seconds=round(time.time() - iteration_started, 1),
+                            seconds=round(iteration_seconds, 1),
                             step=self.trainer.global_step,
-                            elapsed=human_time(time.time() - began))
+                            elapsed=human_time(time.time() - began),
+                            per_iteration=human_time(per_iteration),
+                            remaining=remaining,
+                            eta=human_time(per_iteration * remaining),
+                            model=best_path,
+                            model_saved=os.path.exists(best_path))
         self.trainer.checkpoint({"iteration": int(self.state.get("iteration", 0))})
         self._save_state()
         summary = self.summary()

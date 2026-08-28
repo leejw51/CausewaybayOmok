@@ -201,7 +201,17 @@ class TorchBackend(Backend):
         info = super().describe()
         info["torch"] = torch.__version__
         if self.torch_device.type == "cuda":
-            info["gpu"] = torch.cuda.get_device_name(0)
+            props = torch.cuda.get_device_properties(0)
+            info["gpu"] = props.name
+            info["gpu_memory"] = f"{props.total_memory / (1024 ** 3):.1f} GiB"
+        elif self.torch_device.type == "mps":
+            info["gpu"] = "Apple GPU (Metal)"
+            recommended = getattr(getattr(torch, "mps", None), "recommended_max_memory", None)
+            if recommended is not None:
+                try:
+                    info["gpu_memory"] = f"{recommended() / (1024 ** 3):.1f} GiB"
+                except Exception:  # the call is unavailable on older torch
+                    pass
         return info
 
     def clone_for_inference(self) -> "TorchBackend":

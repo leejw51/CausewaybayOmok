@@ -47,6 +47,32 @@ _preset(
 # The default: 6x96, 160 simulations.
 _preset("base")
 
+# The base network, but a much cheaper search around it: tuned to reach the
+# casual-human milestone in roughly half an hour on a modern GPU.  Each
+# iteration carries ~4x less searched experience than `base`, so iteration 60
+# here is weaker than iteration 60 there -- the trade is deliberate.
+_preset(
+    "fast",
+    mcts__simulations=64,
+    selfplay__games_per_iter=32, selfplay__parallel_games=32,
+    train__steps_per_iter=200,
+    arena__games=12, arena__simulations=64, arena__parallel_games=12,
+    iterations=60,
+)
+
+# A ten-minute run: a smaller net and a cheap search, sized so the whole
+# thing finishes over a coffee.  It plays legally and blocks the obvious
+# threats; it will not beat anyone who has thought about the game.
+_preset(
+    "blitz",
+    net__channels=64, net__blocks=4,
+    mcts__simulations=32,
+    selfplay__games_per_iter=24, selfplay__parallel_games=24,
+    train__batch_size=256, train__steps_per_iter=120,
+    arena__games=8, arena__simulations=32, arena__parallel_games=8,
+    iterations=30,
+)
+
 # For a CUDA box you are happy to leave running.
 _preset(
     "strong",
