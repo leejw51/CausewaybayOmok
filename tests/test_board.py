@@ -114,3 +114,24 @@ def test_neighbourhood_mask():
     b.play(40)
     near = b.neighbourhood(radius=1)
     assert near.sum() == 8 and not near[40]
+
+
+def test_winning_squares_and_forced_move():
+    b = Board(9, 5)
+    # black: 4 in a row on row 4, cols 1-4; white: scattered on row 0
+    b.play_many([b.index(4, 1), b.index(0, 0), b.index(4, 2), b.index(0, 1),
+                 b.index(4, 3), b.index(0, 2), b.index(4, 4), b.index(0, 3)])
+    # black to move: completing squares on either end
+    assert sorted(b.winning_squares(BLACK)) == [b.index(4, 0), b.index(4, 5)]
+    assert b.forced_move() in (b.index(4, 0), b.index(4, 5))
+    # white to move against the same four must block one of the ends
+    b2 = Board(9, 5)
+    b2.play_many([b2.index(4, 1), b2.index(0, 0), b2.index(4, 2), b2.index(0, 1),
+                  b2.index(4, 3), b2.index(0, 2), b2.index(4, 4)])
+    assert b2.to_move == WHITE
+    assert b2.winning_squares(WHITE) == []
+    assert b2.forced_move() in (b2.index(4, 0), b2.index(4, 5))
+    # no threats -> no forced move
+    b3 = Board(9, 5)
+    b3.play(40)
+    assert b3.forced_move() is None

@@ -130,6 +130,40 @@ class Board:
                 return True
         return False
 
+    def winning_squares(self, player: int, candidates: Iterable[int] | None = None) -> list[int]:
+        """Empty squares where ``player`` would complete a winning line now.
+
+        ``wins_at`` never reads the square being tested, so the stone does not
+        need to be placed first.
+        """
+        if self.over:
+            return []
+        cells = self.cells
+        if candidates is None:
+            candidates = range(len(cells))
+        return [i for i in candidates
+                if cells[i] == EMPTY and self.wins_at(i, player)]
+
+    def forced_move(self) -> int | None:
+        """One-ply tactics: take an immediate win, else block the opponent's.
+
+        Search at casual simulation budgets can miss both, and missing either
+        one is what makes an engine look broken to a human.
+        """
+        if self.over:
+            return None
+        # A five-completing square always touches the stone next to the gap,
+        # so scanning the radius-2 neighbourhood of the stones is exhaustive.
+        candidates = np.nonzero(self.neighbourhood(2))[0]
+        mine = self.winning_squares(self.to_move, candidates)
+        if mine:
+            return mine[0]
+        opponent = WHITE if self.to_move == BLACK else BLACK
+        theirs = self.winning_squares(opponent, candidates)
+        if theirs:
+            return theirs[0]  # several at once is lost anyway; block one
+        return None
+
     def result_for(self, player: int) -> float:
         """+1 win / -1 loss / 0 draw or unfinished, from ``player``'s view."""
         if not self.over or self.winner == DRAW:

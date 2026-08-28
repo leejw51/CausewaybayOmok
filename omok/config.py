@@ -34,25 +34,29 @@ class NetConfig:
 
 @dataclass
 class MCTSConfig:
-    simulations: int = 160
+    simulations: int = 128
     c_puct: float = 1.6
     dirichlet_alpha: float = 0.15
     dirichlet_weight: float = 0.25
     # Moves played with temperature 1.0 before switching to (near) argmax.
-    temperature_moves: int = 12
+    temperature_moves: int = 8
     temperature: float = 1.0
     # First play urgency reduction: value used for unvisited children.
     fpu_reduction: float = 0.25
     # Re-use the sub-tree of the played move between moves of a game.
     reuse_tree: bool = True
+    # Zero the prior of moves farther than this from every stone (0 = off).
+    # In gomoku every tactically relevant move is adjacent to the action, so
+    # this concentrates the whole simulation budget where the game is.
+    prior_local_radius: int = 2
 
 
 @dataclass
 class SelfPlayConfig:
-    games_per_iter: int = 64
+    games_per_iter: int = 96
     # Number of games stepped through MCTS simultaneously.  This is what makes
     # the neural-network batches large enough to be worth a GPU.
-    parallel_games: int = 32
+    parallel_games: int = 96
     # Flush finished games to disk after this many games (crash safety).
     flush_every_games: int = 2
     # ... or after this many seconds, whichever comes first.
@@ -65,11 +69,14 @@ class SelfPlayConfig:
 @dataclass
 class TrainConfig:
     batch_size: int = 512
-    steps_per_iter: int = 400
+    steps_per_iter: int = 300
     lr: float = 2e-3
     lr_min: float = 2e-4
     lr_warmup_steps: int = 200
-    lr_decay_steps: int = 200_000
+    # Sized so a milestone run actually reaches the low-lr regime: the casual
+    # target (60 iterations) lands near lr_min instead of training at full lr
+    # for its whole life.
+    lr_decay_steps: int = 24_000
     weight_decay: float = 1e-4
     value_loss_weight: float = 1.0
     grad_clip: float = 4.0
@@ -77,18 +84,20 @@ class TrainConfig:
     ckpt_every_steps: int = 100
     ckpt_every_seconds: float = 120.0
     keep_last_ckpts: int = 5
-    replay_max_positions: int = 400_000
+    # Keep the window tight enough that iteration-0 random games age out of a
+    # short run instead of being sampled forever.
+    replay_max_positions: int = 150_000
     replay_min_positions: int = 2_000
     augment: bool = True
 
 
 @dataclass
 class ArenaConfig:
-    games: int = 24
-    simulations: int = 100
+    games: int = 20
+    simulations: int = 96
     promote_winrate: float = 0.55
     temperature_moves: int = 4
-    parallel_games: int = 12
+    parallel_games: int = 20
 
 
 @dataclass

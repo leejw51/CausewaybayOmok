@@ -36,7 +36,7 @@ OUTLOG := $(RUN)/logs/train.out
 .DEFAULT_GOAL := help
 .PHONY: help env install install-dev install-export install-gui test smoke info bench \
         backends train resume train-bg stop tail status selfplay fit arena export \
-        export-onnx export-npz play gui assets watch clean-run clean distclean \
+        export-onnx export-npz play gui assets watch clear clean-run clean distclean \
         train-to train-fast train-average train-basic train-casual train-strong train-full
 
 help: ## Show this help
@@ -145,16 +145,16 @@ train-fast: ## ~10 minutes (blitz preset): end-to-end check that the whole flow 
 train-average: ## ~30 minutes (fast preset): a real but quick run
 	@$(MAKE) --no-print-directory train-to TO=45 PRESET=fast
 
-train-basic: ## Train to iteration 10 (~35m on M4 Max): plays legally, blocks threats
+train-basic: ## Train to iteration 10 (~10m on RTX 5070): plays legally, blocks threats
 	@$(MAKE) --no-print-directory train-to TO=10
 
-train-casual: ## Train to iteration 60 (~3.5h): beats a casual human
+train-casual: ## Train to iteration 60 (~1h on RTX 5070): a real game of omok
 	@$(MAKE) --no-print-directory train-to TO=60
 
-train-strong: ## Train to iteration 200 (~12h): hard to beat without study
+train-strong: ## Train to iteration 200 (~3.5h on RTX 5070): hard to beat without study
 	@$(MAKE) --no-print-directory train-to TO=200
 
-train-full: ## Train to iteration 1000 (~60h): the full run
+train-full: ## Train to iteration 1000 (~17h on RTX 5070): the full run
 	@$(MAKE) --no-print-directory train-to TO=1000
 
 train-bg: ## Same as `train` but in the background, logging to $(OUTLOG)
@@ -202,6 +202,10 @@ gui: ## Play against the trained model in a window (COLOR=black|white|none|both)
 	$(OMOK) gui $(COMMON) --color $(COLOR) $(if $(SIMS),--simulations $(SIMS),)
 
 # ----------------------------------------------------------------- cleaning
+clear: ## Remove the trained AI model and its data ($(RUN)) for a fresh start
+	rm -rf $(RUN)
+	@echo "removed $(RUN) -- the next make train starts from scratch"
+
 clean-run: ## Delete this run's directory ($(RUN)) -- data and checkpoints included
 	rm -rf $(RUN)
 

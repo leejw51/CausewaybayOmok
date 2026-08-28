@@ -164,6 +164,11 @@ class Tree:
         self._pending_node = self._pending_board = self._pending_path = None
         if node is None or board is None or path is None:
             return
+        radius = self.cfg.prior_local_radius
+        if radius > 0:
+            local = np.where(board.neighbourhood(radius), priors, 0.0)
+            if float(local.sum()) > 1e-6:
+                priors = local
         node.expand(priors, board.legal_mask())
         node.value = float(value)
         if node is self.root and rng is not None:
@@ -176,6 +181,10 @@ class Tree:
         if cfg.dirichlet_weight <= 0.0 or self.root.P is None or self.root_noise_applied:
             return
         legal = self.board.legal_mask()
+        if cfg.prior_local_radius > 0:
+            near = legal & self.board.neighbourhood(cfg.prior_local_radius)
+            if near.any():
+                legal = near
         indices = np.nonzero(legal)[0]
         if len(indices) == 0:
             return
@@ -257,6 +266,12 @@ def run_search(trees: Sequence[Tree], evaluator: Evaluator, simulations: int,
     active = [t for t in trees if not t.board.over]
     if not active:
         return
+    # A reused sub-tree arrives with its root already expanded, so the noise
+    # normally added on expansion must be injected here instead -- otherwise
+    # self-play explores only on the first move of each game.
+    for tree in active:
+        if tree.root.expanded and not tree.root_noise_applied:
+            tree.apply_root_noise(rng)
     for _ in range(simulations):
         pending: list[Tree] = []
         boards: list[Board] = []
