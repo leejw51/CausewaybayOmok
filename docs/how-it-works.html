@@ -1,0 +1,1767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How CausewaybayOmok Learns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<style>
+:root{
+  --ground:#EEF0EC; --surface:#FAFBF9; --surface-2:#E4E8E3;
+  --ink:#141C18; --ink-2:#3C4842; --muted:#667369; --line:#D2D8D1;
+  --accent:#1F6B52; --accent-2:#3F9B78; --accent-wash:rgba(31,107,82,.10);
+  --warm:#B5661F; --warm-wash:rgba(181,102,31,.12);
+  --stone-b:#12181A; --stone-w:#F6F7F4; --stone-w-line:#B9C1B6; --grid:#C3C9BF;
+  --shadow:0 1px 2px rgba(20,28,24,.06), 0 8px 24px rgba(20,28,24,.05);
+
+  --ease-out-quad:cubic-bezier(.25,.46,.45,.94);
+  --ease-out-cubic:cubic-bezier(.215,.61,.355,1);
+  --ease-in-out-cubic:cubic-bezier(.645,.045,.355,1);
+  --ease-out-back:cubic-bezier(.34,1.7,.64,1);
+
+  --w-wide:1080px; --w-prose:66ch;
+  --display:"Gowun Batang", "Nanum Myeongjo", Georgia, serif;
+  --body:"IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, -apple-system, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E1211; --surface:#151A18; --surface-2:#1D2422;
+    --ink:#E8EEE9; --ink-2:#BDC8C1; --muted:#8B978F; --line:#262E2B;
+    --accent:#5FC49B; --accent-2:#8ADCB9; --accent-wash:rgba(95,196,155,.12);
+    --warm:#DB9A55; --warm-wash:rgba(219,154,85,.14);
+    --stone-b:#080C0D; --stone-w:#EDF0EA; --stone-w-line:#5A665E; --grid:#33403A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E1211; --surface:#151A18; --surface-2:#1D2422;
+  --ink:#E8EEE9; --ink-2:#BDC8C1; --muted:#8B978F; --line:#262E2B;
+  --accent:#5FC49B; --accent-2:#8ADCB9; --accent-wash:rgba(95,196,155,.12);
+  --warm:#DB9A55; --warm-wash:rgba(219,154,85,.14);
+  --stone-b:#080C0D; --stone-w:#EDF0EA; --stone-w-line:#5A665E; --grid:#33403A;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-weight:300; font-size:16px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+body:not([data-lang]) .ko{display:none !important}
+body[data-lang="en"] .ko{display:none !important}
+body[data-lang="ko"] .en{display:none !important}
+
+.wrap{width:min(100% - 44px, var(--w-wide)); margin-inline:auto}
+.prose{max-width:var(--w-prose)}
+h1,h2,h3,h4{font-family:var(--display); font-weight:700; text-wrap:balance; margin:0; line-height:1.22}
+h2{font-size:clamp(1.55rem,3vw,2.15rem); letter-spacing:-.01em}
+h3{font-family:var(--body); font-weight:600; font-size:1.02rem; line-height:1.5; letter-spacing:0}
+p{margin:0}
+a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:3px}
+code,.mono{font-family:var(--mono); font-size:.87em}
+code{background:var(--surface-2); padding:.1em .38em; border-radius:2px; color:var(--ink-2)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:40; background:color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+}
+.topbar .wrap{display:flex; align-items:center; justify-content:space-between; gap:16px; height:54px}
+.brand{display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:.74rem;
+  text-transform:uppercase; letter-spacing:.16em; color:var(--muted)}
+.brand .dot{width:9px; height:9px; border-radius:50%; background:var(--ink); flex:none}
+.langswitch{display:flex; border:1px solid var(--line); border-radius:2px; overflow:hidden; background:var(--surface)}
+.langswitch button{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; padding:6px 11px;
+  background:transparent; border:0; color:var(--muted); cursor:pointer; transition:background .25s var(--ease-out-cubic), color .25s var(--ease-out-cubic);
+}
+.langswitch button[aria-pressed="true"]{background:var(--ink); color:var(--ground)}
+
+/* ---------- hero ---------- */
+.hero{padding:clamp(38px,7vw,78px) 0 clamp(30px,5vw,54px); border-bottom:1px solid var(--line)}
+.hero .wrap{display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(24px,5vw,56px); align-items:center}
+@media (max-width:820px){.hero .wrap{grid-template-columns:1fr}}
+.eyebrow{font-family:var(--mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.18em;
+  color:var(--accent); display:flex; align-items:center; gap:8px; margin-bottom:18px}
+.eyebrow::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none}
+.hero h1{font-size:clamp(2.4rem,5.6vw,3.9rem); letter-spacing:-.02em}
+.hero h1 em{font-style:normal; color:var(--accent)}
+.lede{margin-top:20px; font-size:1.08rem; color:var(--ink-2); max-width:46ch}
+.statstrip{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+  margin-top:32px; background:var(--line); border:1px solid var(--line)}
+.statstrip div{background:var(--ground); padding:14px 16px}
+.statstrip b{display:block; font-family:var(--mono); font-weight:500; font-size:1.15rem; color:var(--ink);
+  font-variant-numeric:tabular-nums; line-height:1.3}
+.statstrip span{font-size:.78rem; color:var(--muted)}
+.boardframe{position:relative; background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow)}
+.boardframe canvas{display:block; width:100%; height:auto}
+.boardcap{padding:10px 14px; border-top:1px solid var(--line); font-size:.76rem; color:var(--muted);
+  display:flex; justify-content:space-between; gap:12px; align-items:baseline}
+.boardcap .mono{color:var(--ink-2)}
+
+/* ---------- sections ---------- */
+section{padding:clamp(48px,7vw,86px) 0; border-bottom:1px solid var(--line)}
+.sechead{display:flex; align-items:baseline; gap:14px; margin-bottom:10px}
+.secnum{font-family:var(--mono); font-size:.76rem; color:var(--muted); letter-spacing:.1em;
+  border:1px solid var(--line); padding:3px 8px; border-radius:2px; flex:none; background:var(--surface)}
+.sub{margin-top:14px; color:var(--ink-2); max-width:var(--w-prose)}
+.stack{display:grid; gap:26px}
+.stack-tight{display:grid; gap:14px}
+/* grid items default to min-width:auto, so one wide child (a diagram, a code
+   block) would stretch every track and scroll the whole page sideways */
+.stack > *, .stack-tight > *, .cards > *, .mcts-stage > *, .heat-wrap > *,
+.sym-wrap > *, .planeout > *, .gate > *{min-width:0}
+canvas, img{max-width:100%}
+
+/* ---------- figures ---------- */
+figure{margin:0; background:var(--surface); border:1px solid var(--line); padding:20px 20px 0}
+figure .svgscroll{overflow-x:auto}
+figure svg{display:block; width:100%; min-width:560px; height:auto; color:var(--ink-2)}
+figcaption{border-top:1px solid var(--line); margin-top:18px; padding:12px 0; font-size:.82rem; color:var(--muted)}
+.d-box{fill:var(--surface); stroke:currentColor; stroke-width:1.1}
+.d-box-a{fill:var(--accent-wash); stroke:var(--accent); stroke-width:1.3}
+.d-box-w{fill:var(--warm-wash); stroke:var(--warm); stroke-width:1.2}
+.d-t{font-family:var(--body); font-size:12.5px; font-weight:500; fill:var(--ink)}
+.d-t-s{font-family:var(--mono); font-size:10.5px; fill:var(--muted)}
+.d-t-a{font-family:var(--mono); font-size:10.5px; fill:var(--accent); letter-spacing:.02em}
+.d-line{stroke:currentColor; stroke-width:1.1; fill:none}
+.d-line-a{stroke:var(--accent); stroke-width:1.4; fill:none}
+.d-dash{stroke-dasharray:4 4}
+
+/* ---------- cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line)}
+@media (max-width:780px){.cards{grid-template-columns:1fr}}
+.card{background:var(--surface); padding:22px 20px; display:grid; gap:9px; align-content:start}
+.card .kicker{font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent)}
+.card p{font-size:.92rem; color:var(--ink-2)}
+.card .meta{font-family:var(--mono); font-size:.74rem; color:var(--muted); font-variant-numeric:tabular-nums;
+  border-top:1px dashed var(--line); padding-top:9px; margin-top:3px}
+
+.note{border-left:2px solid var(--accent); padding:2px 0 2px 16px; color:var(--ink-2); font-size:.93rem}
+.small{font-size:.82rem; color:var(--muted)}
+
+/* ---------- panels / widgets ---------- */
+.panel{background:var(--surface); border:1px solid var(--line); padding:20px}
+.panel-head{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px;
+  padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid var(--line)}
+.panel-head h3{margin:0}
+.ctrls{display:flex; gap:8px; flex-wrap:wrap}
+.btn{font-family:var(--mono); font-size:.75rem; letter-spacing:.06em; padding:7px 13px; cursor:pointer;
+  background:var(--surface); border:1px solid var(--line); color:var(--ink-2); border-radius:2px;
+  transition:transform .18s var(--ease-out-back), background .22s var(--ease-out-cubic), color .22s var(--ease-out-cubic), border-color .22s var(--ease-out-cubic)}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn:active{transform:scale(.96)}
+.btn[aria-pressed="true"], .btn.on{background:var(--accent); border-color:var(--accent); color:var(--ground)}
+
+/* plane chips */
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{font-family:var(--mono); font-size:.75rem; padding:7px 12px; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink-2); border-radius:2px; cursor:pointer;
+  transition:background .22s var(--ease-out-cubic), border-color .22s var(--ease-out-cubic), transform .2s var(--ease-out-back)}
+.chip:hover{transform:translateY(-2px)}
+.chip[aria-pressed="true"]{background:var(--accent-wash); border-color:var(--accent); color:var(--accent)}
+.planeout{margin-top:16px; display:grid; grid-template-columns:auto 1fr; gap:20px; align-items:center}
+@media (max-width:620px){.planeout{grid-template-columns:1fr}}
+.planeout svg{width:190px; height:190px; flex:none}
+.planeout .txt{font-size:.93rem; color:var(--ink-2)}
+.planeout .txt .mono{display:block; color:var(--muted); font-size:.78rem; margin-top:6px}
+
+/* mcts */
+.mcts-stage{display:grid; grid-template-columns:1fr 232px; gap:20px}
+@media (max-width:820px){.mcts-stage{grid-template-columns:1fr}}
+.mcts-svg{overflow-x:auto}
+.mcts-svg svg{width:100%; min-width:520px; height:auto}
+.mnode circle{fill:var(--surface); stroke:currentColor; stroke-width:1.2;
+  transform-box:fill-box; transform-origin:center;
+  transition:transform .42s var(--ease-out-back), opacity .38s var(--ease-out-cubic), fill .3s var(--ease-out-cubic), stroke .3s var(--ease-out-cubic)}
+.mnode.hidden{opacity:0}
+.mnode.hidden circle{transform:scale(.1)}
+.mnode.on circle{fill:var(--accent-wash); stroke:var(--accent); stroke-width:1.8}
+.mnode.eval circle{fill:var(--warm-wash); stroke:var(--warm); stroke-width:1.8}
+.mnode text{font-family:var(--mono); font-size:10px; fill:var(--ink-2); text-anchor:middle}
+.mnode .nlab{font-size:11px; fill:var(--ink); font-weight:500}
+.medge{stroke:var(--line); stroke-width:1.6; fill:none; transition:opacity .35s var(--ease-out-cubic)}
+.medge.hidden{opacity:0}
+.mflow{stroke:var(--accent); stroke-width:2.4; fill:none; stroke-linecap:round;
+  stroke-dasharray:var(--len) var(--len); stroke-dashoffset:var(--len); opacity:0}
+.mflow.run{opacity:1; transition:stroke-dashoffset .55s var(--ease-in-out-cubic); stroke-dashoffset:0}
+.mflow.back{stroke:var(--warm)}
+.phaselist{display:grid; gap:1px; background:var(--line); border:1px solid var(--line); align-content:start}
+.phase{background:var(--surface); padding:11px 14px; display:grid; gap:2px;
+  transition:background .3s var(--ease-out-cubic)}
+.phase .pk{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; color:var(--muted)}
+.phase .pd{font-size:.82rem; color:var(--ink-2)}
+.phase.on{background:var(--accent-wash)}
+.phase.on .pk{color:var(--accent)}
+.simcount{font-family:var(--mono); font-size:.75rem; color:var(--muted); font-variant-numeric:tabular-nums}
+
+/* formula */
+pre.code{background:var(--surface-2); border:1px solid var(--line); padding:16px 18px; margin:0;
+  overflow-x:auto; font-family:var(--mono); font-size:.82rem; line-height:1.65; color:var(--ink-2);
+  tab-size:2}
+pre.code b{color:var(--ink); font-weight:500}
+pre.code i{color:var(--muted); font-style:normal}
+pre.code u{color:var(--accent); text-decoration:none}
+pre.code s{color:var(--warm); text-decoration:none}
+.formula{background:var(--surface-2); border:1px solid var(--line); padding:16px 18px; overflow-x:auto;
+  font-family:var(--mono); font-size:.88rem; color:var(--ink); line-height:1.9}
+.formula .hl{color:var(--accent)}
+.formula .hl2{color:var(--warm)}
+.legend{display:grid; gap:6px; margin-top:12px; font-size:.82rem; color:var(--muted)}
+.legend b{font-family:var(--mono); font-weight:500; color:var(--ink-2)}
+
+/* heatmap */
+.heat-wrap{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+@media (max-width:700px){.heat-wrap{grid-template-columns:1fr}}
+.heat-cell{display:grid; gap:10px; justify-items:center}
+.heat-cell h4{font-family:var(--mono); font-weight:500; font-size:.78rem; letter-spacing:.06em;
+  color:var(--muted)}
+.gr{text-transform:none; font-family:var(--body)}
+.heat-cell svg{width:100%; max-width:280px; height:auto}
+.heat-cell rect.hm{transition:opacity .7s var(--ease-in-out-cubic)}
+
+/* symmetry */
+.sym-wrap{display:grid; grid-template-columns:auto 1fr; gap:26px; align-items:center}
+@media (max-width:620px){.sym-wrap{grid-template-columns:1fr}}
+.sym-wrap svg{width:190px; height:190px}
+#sym-rot{transform-origin:71px 71px; transition:transform .8s var(--ease-in-out-cubic)}
+#sym-flip{transform-origin:71px 71px; transition:transform .8s var(--ease-in-out-cubic)}
+.symk{font-family:var(--mono); font-size:1.5rem; color:var(--accent); font-variant-numeric:tabular-nums}
+
+/* arena */
+.gate{display:grid; gap:16px}
+.gatebar{position:relative; height:44px; background:var(--surface-2); border:1px solid var(--line); overflow:hidden}
+.gatefill{position:absolute; inset:0 auto 0 0; width:0%;
+  background:color-mix(in srgb, var(--accent) 24%, transparent);
+  border-right:2px solid var(--accent); transition:width .6s var(--ease-out-cubic), background .4s var(--ease-out-cubic), border-color .4s var(--ease-out-cubic)}
+.gatefill.no{background:color-mix(in srgb, var(--warm) 24%, transparent); border-right-color:var(--warm)}
+.gatemark{position:absolute; top:0; bottom:0; left:55%; width:0; border-left:2px dashed var(--ink-2)}
+.gatemark span{position:absolute; top:50%; transform:translate(-100%,-50%); left:-9px; white-space:nowrap;
+  font-family:var(--mono); font-size:.7rem; color:var(--ink-2)}
+.gaterow{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.gaterow input[type=range]{flex:1; min-width:200px; accent-color:var(--accent)}
+.verdict{font-family:var(--mono); font-size:.78rem; padding:7px 13px; border:1px solid var(--accent);
+  color:var(--accent); background:var(--accent-wash); border-radius:2px;
+  transition:color .35s var(--ease-out-cubic), border-color .35s var(--ease-out-cubic), background .35s var(--ease-out-cubic)}
+.verdict.no{color:var(--warm); border-color:var(--warm); background:var(--warm-wash)}
+.scoreval{font-family:var(--mono); font-size:1.3rem; color:var(--ink); font-variant-numeric:tabular-nums; min-width:4ch}
+
+/* backprop widgets */
+.bp-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:1px;
+  background:var(--line); border:1px solid var(--line); margin:18px 0}
+.bp-stat{background:var(--surface); padding:13px 15px}
+.bp-stat .k{display:block; font-family:var(--mono); font-size:.68rem; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:3px}
+.bp-stat b{font-family:var(--mono); font-size:1.24rem; font-weight:500; color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.bp-stat.hot b{color:var(--accent)}
+.bp-stat.cold b{color:var(--warm)}
+.verdictline{border-left:2px solid var(--accent); padding:2px 0 2px 16px; font-size:.93rem; color:var(--ink-2);
+  transition:border-color .35s var(--ease-out-cubic)}
+.verdictline.warn{border-left-color:var(--warm)}
+.klbar{display:grid; gap:12px; margin-top:6px}
+.klrow{display:grid; grid-template-columns:132px 1fr auto; gap:14px; align-items:center}
+.klrow .lab{font-family:var(--mono); font-size:.74rem; color:var(--muted)}
+.klrow .track{height:26px; background:var(--surface-2); border:1px solid var(--line); display:flex}
+.klrow .seg{height:100%; transition:width .8s var(--ease-in-out-cubic)}
+.klrow .seg.h{background:color-mix(in srgb, var(--muted) 34%, transparent)}
+.klrow .seg.kl{background:color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left:2px solid var(--accent)}
+.klrow .num{font-family:var(--mono); font-size:.78rem; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.klkey{display:flex; gap:18px; flex-wrap:wrap; font-size:.78rem; color:var(--muted); margin-top:4px}
+.klkey span{display:flex; align-items:center; gap:7px}
+.klkey i{width:13px; height:13px; display:inline-block; font-style:normal}
+
+/* tables */
+.tablewrap{overflow-x:auto; border:1px solid var(--line); background:var(--surface)}
+table{border-collapse:collapse; width:100%; min-width:520px; font-size:.88rem}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line)}
+th{font-family:var(--mono); font-weight:500; font-size:.72rem; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--muted); background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:0}
+td.mono{font-variant-numeric:tabular-nums; color:var(--ink-2)}
+tr.hi td{background:var(--accent-wash)}
+
+/* reveal */
+.reveal{opacity:0; transform:translateY(18px); transition:opacity .7s var(--ease-out-cubic), transform .7s var(--ease-out-cubic)}
+.reveal.in{opacity:1; transform:none}
+
+footer{padding:44px 0 60px; color:var(--muted); font-size:.85rem}
+footer .wrap{display:grid; gap:14px}
+footer .files{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:6px 22px}
+footer .files div{font-family:var(--mono); font-size:.76rem; display:flex; gap:8px}
+footer .files b{color:var(--ink-2); font-weight:500}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important}
+  .reveal{opacity:1; transform:none}
+}
+</style>
+
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+    <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/>
+    </marker>
+    <marker id="ar-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--warm)"/>
+    </marker>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>CausewaybayOmok</div>
+    <div class="langswitch" role="group" aria-label="Language">
+      <button id="lang-en" aria-pressed="true">EN</button>
+      <button id="lang-ko" aria-pressed="false">한국어</button>
+    </div>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow"><span class="en">Self-play from zero</span><span class="ko">백지에서 스스로 학습</span></div>
+      <h1><span class="en">A gomoku engine that <em>taught itself</em>, in about 5,000 lines of Python</span><span class="ko">파이썬 5,000줄로 <em>스스로 배운</em> 오목 엔진</span></h1>
+      <p class="lede en">No human games. No opening book. The program plays itself, keeps every game, and slowly rewrites its own intuition. This page walks through exactly how: first how it learns, then how it plays.</p>
+      <p class="lede ko">사람의 기보도, 정석책도 없습니다. 프로그램이 스스로와 두고, 그 기록을 모으고, 자신의 직관을 조금씩 고쳐 씁니다. 이 페이지는 그 과정을 학습과 추론으로 나누어 하나씩 보여줍니다.</p>
+      <div class="statstrip">
+        <div><b>1,265,822</b><span class="en">parameters (base)</span><span class="ko">파라미터 (base)</span></div>
+        <div><b>5.06 MB</b><span class="en">on disk, float32</span><span class="ko">디스크 용량, float32</span></div>
+        <div><b>15×15</b><span class="en">board, five in a row</span><span class="ko">판, 5목 승리</span></div>
+        <div><b>4m 12s</b><span class="en">one training iteration</span><span class="ko">학습 1회 반복</span></div>
+      </div>
+    </div>
+    <div class="boardframe">
+      <canvas id="hero-board" width="720" height="720" role="img" aria-label="A 15 by 15 gomoku board where stones drop in one by one until black completes a diagonal five in a row."></canvas>
+      <div class="boardcap">
+        <span class="en">Scripted replay of the drop animation in <span class="mono">omok/gui.py</span></span>
+        <span class="ko"><span class="mono">omok/gui.py</span>의 착수 애니메이션 재현</span>
+        <span class="mono">ease_out_back(1.9)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 1. THE LOOP ============ -->
+<section id="loop">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">01</span><h2><span class="en">The whole thing, in one circle</span><span class="ko">전체 구조는 하나의 원</span></h2></div>
+      <p class="sub en">Training is a loop of three phases that never stops. Each turn of the loop makes a slightly better player, which then generates slightly better data for the next turn. That feedback is the entire idea.</p>
+      <p class="sub ko">학습은 세 단계가 끝없이 도는 순환입니다. 한 바퀴 돌 때마다 조금 더 잘 두는 모델이 나오고, 그 모델이 다음 바퀴에 쓸 더 좋은 데이터를 만듭니다. 이 되먹임이 전부입니다.</p>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 980 330" role="img" aria-label="The training loop: the best model plays self-play games, which are written to replay shards, which train a candidate network, which the arena tests against the best model; winning candidates are promoted back to best.">
+        <rect class="d-box-a" x="16" y="176" width="146" height="78" rx="2"/>
+        <text class="d-t" x="89" y="206" text-anchor="middle">best.npz</text>
+        <text class="d-t-a" x="89" y="224" text-anchor="middle">the current champion</text>
+        <text class="d-t-s" x="89" y="240" text-anchor="middle">5.06 MB</text>
+
+        <rect class="d-box" x="228" y="176" width="158" height="78" rx="2"/>
+        <text class="d-t" x="307" y="203" text-anchor="middle">1 · Self-play</text>
+        <text class="d-t-s" x="307" y="221" text-anchor="middle">64 games, 32 at once</text>
+        <text class="d-t-s" x="307" y="237" text-anchor="middle">160 sims per move</text>
+
+        <rect class="d-box" x="452" y="176" width="150" height="78" rx="2"/>
+        <text class="d-t" x="527" y="203" text-anchor="middle">replay/</text>
+        <text class="d-t-s" x="527" y="221" text-anchor="middle">shard-*.npz</text>
+        <text class="d-t-s" x="527" y="237" text-anchor="middle">moves + policies</text>
+
+        <rect class="d-box" x="668" y="176" width="146" height="78" rx="2"/>
+        <text class="d-t" x="741" y="203" text-anchor="middle">2 · Train</text>
+        <text class="d-t-s" x="741" y="221" text-anchor="middle">400 steps</text>
+        <text class="d-t-s" x="741" y="237" text-anchor="middle">batch 512, AdamW</text>
+
+        <rect class="d-box-w" x="836" y="176" width="128" height="78" rx="2"/>
+        <text class="d-t" x="900" y="203" text-anchor="middle">3 · Arena</text>
+        <text class="d-t-s" x="900" y="221" text-anchor="middle">24 games</text>
+        <text class="d-t-s" x="900" y="237" text-anchor="middle">new vs. best</text>
+
+        <line class="d-line" x1="162" y1="215" x2="222" y2="215" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="192" y="205" text-anchor="middle">plays</text>
+        <line class="d-line" x1="386" y1="215" x2="446" y2="215" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="416" y="205" text-anchor="middle">writes</text>
+        <line class="d-line" x1="602" y1="215" x2="662" y2="215" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="632" y="205" text-anchor="middle">samples</text>
+        <line class="d-line" x1="814" y1="215" x2="830" y2="215" marker-end="url(#ar)"/>
+
+        <path class="d-line-a" d="M900 176 L900 96 Q900 76 880 76 L109 76 Q89 76 89 96 L89 170" marker-end="url(#ar-a)"/>
+        <text class="d-t-a" x="494" y="66" text-anchor="middle">promote — only if the new net scores ≥ 0.55</text>
+
+        <path class="d-line d-dash" d="M964 215 L976 215 L976 296 L741 296 L741 260" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="964" y="314" text-anchor="end">otherwise: keep the old best, and train on</text>
+
+        <text class="d-t-s" x="16" y="30">every phase writes state.json before it moves on — kill the process anywhere and `make resume` continues</text>
+        <path class="d-line d-dash" d="M16 40 L964 40" opacity=".35"/>
+      </svg>
+      </div>
+      <figcaption><span class="en">One iteration of <span class="mono">omok/pipeline.py</span>. The model that generates data is always the <em>best</em> one, never the newest — that is what keeps a bad training run from poisoning the data.</span><span class="ko"><span class="mono">omok/pipeline.py</span>의 한 반복. 데이터를 만드는 모델은 언제나 <em>최선</em> 모델이지 최신 모델이 아닙니다. 학습이 잘못돼도 데이터가 오염되지 않는 이유입니다.</span></figcaption>
+    </figure>
+
+    <div class="cards reveal">
+      <div class="card">
+        <span class="kicker">01 · Self-play</span>
+        <h3><span class="en">Play 64 games against yourself</span><span class="ko">자신과 64판을 둔다</span></h3>
+        <p class="en">For every move, search a few hundred futures and write down two things: how often the search visited each point, and who eventually won.</p>
+        <p class="ko">매 수마다 수백 가지 미래를 탐색하고 두 가지를 적어 둡니다. 각 지점을 탐색이 몇 번 방문했는지, 그리고 결국 누가 이겼는지.</p>
+        <div class="meta">games_per_iter 64 · parallel 32</div>
+      </div>
+      <div class="card">
+        <span class="kicker">02 · Train</span>
+        <h3><span class="en">Fit the network to what search found</span><span class="ko">탐색 결과에 신경망을 맞춘다</span></h3>
+        <p class="en">Search is slow but smart; the network is fast but naive. Training pours the slow-and-smart answers into the fast one.</p>
+        <p class="ko">탐색은 느리지만 똑똑하고, 신경망은 빠르지만 순진합니다. 학습은 느리고 똑똑한 답을 빠른 쪽에 부어 넣는 일입니다.</p>
+        <div class="meta">400 steps · batch 512 · lr 2e-3 → 2e-4</div>
+      </div>
+      <div class="card">
+        <span class="kicker">03 · Arena</span>
+        <h3><span class="en">Only promote if it actually wins</span><span class="ko">실제로 이길 때만 승격한다</span></h3>
+        <p class="en">The new network plays 24 games against the reigning best, colours alternating. Below a 55% score it is thrown away.</p>
+        <p class="ko">새 신경망이 현 최선 모델과 흑백을 바꿔가며 24판을 둡니다. 55%에 못 미치면 버려집니다.</p>
+        <div class="meta">promote_winrate 0.55 · draws = 0.5</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. THE NETWORK ============ -->
+<section id="net">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">02</span><h2><span class="en">The brain: one small network, two answers</span><span class="ko">두뇌: 작은 신경망 하나, 답은 두 개</span></h2></div>
+      <p class="sub en">Show it a position and it answers two questions at once. <b>Where would I play?</b> — a probability for all 225 points. <b>Am I winning?</b> — one number from −1 to +1. Everything else in the project exists to make these two answers better.</p>
+      <p class="sub ko">판을 보여주면 두 질문에 동시에 답합니다. <b>어디에 둘까?</b> — 225개 지점 각각의 확률. <b>내가 이기고 있나?</b> — −1에서 +1 사이의 숫자 하나. 프로젝트의 나머지는 전부 이 두 답을 좋게 만들기 위해 존재합니다.</p>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 980 310" role="img" aria-label="Network architecture: five input planes feed a 3 by 3 convolution stem, then six residual blocks of 96 channels, which split into a policy head producing 225 probabilities and a value head producing one number.">
+        <g>
+          <rect class="d-box" x="24" y="128" width="70" height="70" rx="2"/>
+          <rect class="d-box" x="38" y="114" width="70" height="70" rx="2"/>
+          <rect class="d-box" x="52" y="100" width="70" height="70" rx="2"/>
+          <rect class="d-box" x="66" y="86" width="70" height="70" rx="2"/>
+          <rect class="d-box-a" x="80" y="72" width="70" height="70" rx="2"/>
+        </g>
+        <text class="d-t" x="88" y="228" text-anchor="middle">5 planes</text>
+        <text class="d-t-s" x="88" y="245" text-anchor="middle">5 × 15 × 15</text>
+        <text class="d-t-s" x="88" y="261" text-anchor="middle">side-to-move view</text>
+
+        <line class="d-line" x1="160" y1="132" x2="204" y2="132" marker-end="url(#ar)"/>
+
+        <rect class="d-box" x="210" y="92" width="96" height="86" rx="2"/>
+        <text class="d-t" x="258" y="128" text-anchor="middle">stem</text>
+        <text class="d-t-s" x="258" y="146" text-anchor="middle">3×3 conv → 96</text>
+        <text class="d-t-s" x="258" y="162" text-anchor="middle">BN + ReLU</text>
+
+        <line class="d-line" x1="306" y1="135" x2="354" y2="135" marker-end="url(#ar)"/>
+
+        <g>
+          <rect class="d-box" x="378" y="86" width="182" height="98" rx="2"/>
+          <rect class="d-box" x="370" y="80" width="182" height="98" rx="2"/>
+          <rect class="d-box-a" x="362" y="74" width="182" height="98" rx="2"/>
+        </g>
+        <text class="d-t" x="453" y="110" text-anchor="middle">6 × residual block</text>
+        <text class="d-t-s" x="453" y="129" text-anchor="middle">conv 3×3 → BN → ReLU</text>
+        <text class="d-t-s" x="453" y="145" text-anchor="middle">conv 3×3 → BN → + input</text>
+        <text class="d-t-a" x="453" y="164" text-anchor="middle">96 channels</text>
+        <text class="d-t-s" x="453" y="212" text-anchor="middle">the skip connection is what lets it stack deep</text>
+
+        <path class="d-line" d="M544 123 L574 123 L574 58 L600 58" marker-end="url(#ar)"/>
+        <path class="d-line" d="M544 123 L574 123 L574 214 L600 214" marker-end="url(#ar)"/>
+
+        <rect class="d-box" x="606" y="24" width="176" height="70" rx="2"/>
+        <text class="d-t" x="694" y="50" text-anchor="middle">policy head</text>
+        <text class="d-t-s" x="694" y="68" text-anchor="middle">1×1 conv → 4 ch</text>
+        <text class="d-t-s" x="694" y="84" text-anchor="middle">flatten → dense 225</text>
+
+        <rect class="d-box" x="606" y="180" width="176" height="70" rx="2"/>
+        <text class="d-t" x="694" y="206" text-anchor="middle">value head</text>
+        <text class="d-t-s" x="694" y="224" text-anchor="middle">1×1 conv → 2 ch</text>
+        <text class="d-t-s" x="694" y="240" text-anchor="middle">dense 128 → 1 → tanh</text>
+
+        <line class="d-line" x1="782" y1="58" x2="812" y2="58" marker-end="url(#ar)"/>
+        <line class="d-line" x1="782" y1="214" x2="812" y2="214" marker-end="url(#ar)"/>
+
+        <rect class="d-box-a" x="818" y="24" width="152" height="70" rx="2"/>
+        <text class="d-t" x="894" y="52" text-anchor="middle">policy — 225 probs</text>
+        <text class="d-t-s" x="894" y="72" text-anchor="middle">“where to play”</text>
+
+        <rect class="d-box-w" x="818" y="180" width="152" height="70" rx="2"/>
+        <text class="d-t" x="894" y="208" text-anchor="middle">value — one number</text>
+        <text class="d-t-s" x="894" y="228" text-anchor="middle">−1 losing … +1 winning</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">The <span class="mono">base</span> preset, defined once in <span class="mono">omok/netspec.py</span> and built identically by both backends. Weight names are PyTorch <span class="mono">state_dict</span> keys, so a model trained on a CUDA box resumes on a Mac.</span><span class="ko"><span class="mono">base</span> 프리셋. <span class="mono">omok/netspec.py</span>에 한 번 정의되고 두 백엔드가 똑같이 만듭니다. 가중치 이름이 PyTorch <span class="mono">state_dict</span> 키라서, CUDA에서 학습한 모델을 Mac에서 이어서 돌릴 수 있습니다.</span></figcaption>
+    </figure>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">What the network actually sees</span><span class="ko">신경망이 실제로 보는 것</span></h3>
+        <div class="chips" id="plane-chips" role="group" aria-label="Input planes"></div>
+      </div>
+      <div class="planeout">
+        <svg id="plane-svg" viewBox="0 0 150 150" role="img" aria-label="A 15 by 15 grid showing which cells are 1 in the selected input plane."></svg>
+        <div class="txt">
+          <span id="plane-en" class="en"></span><span id="plane-ko" class="ko"></span>
+          <span class="mono" id="plane-code"></span>
+        </div>
+      </div>
+      <p class="note" style="margin-top:18px"><span class="en">Every plane is drawn from the point of view of <em>whoever is about to move</em>. The network is never told "you are white" — it always sees itself as plane 0. That single choice halves what it has to learn, and lets one game teach both colours.</span><span class="ko">모든 평면은 <em>지금 둘 차례인 쪽</em>의 시점으로 만들어집니다. 신경망은 "너는 백이다"라는 말을 듣지 않습니다. 언제나 자기 자신이 평면 0입니다. 이 선택 하나로 배울 양이 절반이 되고, 한 판의 기록이 흑백 양쪽 공부가 됩니다.</span></p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Is it a ResNet? Yes — here is the whole model</span><span class="ko">ResNet인가? 맞습니다 — 모델 전체는 이게 전부입니다</span></h3>
+        <span class="small mono">omok/backends/torch_backend.py</span>
+      </div>
+      <p class="small" style="margin-bottom:14px"><span class="en">It is a residual tower in the AlphaZero style, not torchvision's ResNet: there is no pooling and no downsampling, so the board stays 15×15 from the first layer to the last. Every point keeps its own 96-number description all the way through.</span><span class="ko">torchvision의 ResNet이 아니라 AlphaZero 방식의 잔차 타워입니다. 풀링도 다운샘플링도 없어서 첫 층부터 마지막 층까지 판은 계속 15×15입니다. 각 지점이 96개짜리 자기 설명을 끝까지 유지합니다.</span></p>
+<pre class="code"><i># simplified — the real file is ~90 lines</i>
+
+class <b>ResBlock</b>(nn.Module):       <i># ← the "Res" in ResNet</i>
+    def forward(self, x):
+        y = relu(bn1(conv1(x)))  <i># 3×3, 96ch, padding=1 → still 15×15</i>
+        y =      bn2(conv2(y))   <i># 3×3, 96ch</i>
+        return relu(<u>x + y</u>)       <i># ★ skip connection: learn the *change*</i>
+
+class <b>OmokNet</b>(nn.Module):
+    def __init__(self):
+        self.stem   = ConvBN(<u>5</u>, 96, k=3)                 <i># 5 planes → 96 channels</i>
+        self.blocks = [ResBlock(96) for _ in range(<u>6</u>)]   <i># the tower</i>
+        self.policy = PolicyHead(96, 4, 15)              <i># 1×1 conv→4ch → fc → 225</i>
+        self.value  = ValueHead (96, 2, 15, hidden=128)  <i># 1×1 conv→2ch → fc128 → 1 → tanh</i>
+
+    def forward(self, x):       <i># x: (B, 5, 15, 15)</i>
+        y = relu(self.stem(x))
+        for b in self.blocks:
+            y = b(y)            <i># shape never changes: (B, 96, 15, 15)</i>
+        return <u>self.policy(y)</u>, <s>self.value(y)</s>
+        <i>#      (B, 225) logits     (B,) in [-1, +1]</i></pre>
+      <p class="small" style="margin-top:14px"><span class="en">Why the skip connection matters: <span class="mono">x + y</span> means each block only has to learn a small <em>correction</em> to what the previous block already understood. Without it, six stacked convolutions train badly. That one plus sign is the whole trick behind ResNet.</span><span class="ko">스킵 커넥션이 중요한 이유: <span class="mono">x + y</span> 덕분에 각 블록은 앞 블록이 이미 파악한 것에 <em>작은 보정</em>만 배우면 됩니다. 이게 없으면 컨볼루션 여섯 층을 쌓았을 때 학습이 잘 되지 않습니다. 이 더하기 하나가 ResNet의 핵심입니다.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. MCTS ============ -->
+<section id="mcts">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">03</span><h2><span class="en">Thinking: 160 little experiments per move</span><span class="ko">사고: 한 수마다 160번의 작은 실험</span></h2></div>
+      <p class="sub en">The network's first guess is a hunch. To turn a hunch into a move, the engine runs a search — and it always does the same four things, 160 times over. Step through it below.</p>
+      <p class="sub ko">신경망의 첫 감은 어디까지나 감입니다. 그 감을 한 수로 바꾸려고 엔진은 탐색을 돌립니다. 하는 일은 늘 같은 네 가지, 그것을 160번 반복합니다. 아래에서 한 단계씩 눌러 보세요.</p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">PUCT search, one simulation at a time</span><span class="ko">PUCT 탐색, 한 번에 한 시뮬레이션씩</span></h3>
+        <div class="ctrls">
+          <span class="simcount" id="sim-count">sim 0 / 6</span>
+          <button class="btn" id="mcts-step"><span class="en">Step</span><span class="ko">한 단계</span></button>
+          <button class="btn" id="mcts-auto"><span class="en">Auto</span><span class="ko">자동</span></button>
+          <button class="btn" id="mcts-reset"><span class="en">Reset</span><span class="ko">처음부터</span></button>
+        </div>
+      </div>
+      <div class="mcts-stage">
+        <div class="mcts-svg">
+          <svg id="mcts-svg" viewBox="0 0 780 330" role="img" aria-label="A search tree that grows as simulations run: a path is selected from the root, a new leaf is added, the network evaluates it, and the value flows back up the path updating visit counts.">
+          </svg>
+        </div>
+        <div class="phaselist" id="phaselist">
+          <div class="phase" data-p="select">
+            <span class="pk">SELECT · 선택</span>
+            <span class="pd en">Walk down from the root, always taking the child with the best Q + U score.</span>
+            <span class="pd ko">뿌리에서 아래로, 매번 Q + U 점수가 가장 높은 자식을 따라갑니다.</span>
+          </div>
+          <div class="phase" data-p="expand">
+            <span class="pk">EXPAND · 확장</span>
+            <span class="pd en">Hit a position never seen before? Add it to the tree as a new leaf.</span>
+            <span class="pd ko">처음 보는 국면에 닿으면 새 잎으로 트리에 추가합니다.</span>
+          </div>
+          <div class="phase" data-p="evaluate">
+            <span class="pk">EVALUATE · 평가</span>
+            <span class="pd en">Ask the network: priors P for every move, and one value v for this position.</span>
+            <span class="pd ko">신경망에 묻습니다. 각 수의 사전확률 P, 그리고 이 국면의 값 v.</span>
+          </div>
+          <div class="phase" data-p="backup">
+            <span class="pk">BACKUP · 역전파</span>
+            <span class="pd en">Send v back up the path, flipping its sign at every ply — your win is my loss.</span>
+            <span class="pd ko">v를 왔던 길로 되돌려 보냅니다. 한 수마다 부호를 뒤집으면서 — 네 승리는 내 패배니까요.</span>
+          </div>
+        </div>
+      </div>
+      <p class="small" style="margin-top:14px"><span class="en">After the last simulation the engine plays the <em>most visited</em> child — not the highest-scoring one. Visits are the honest vote: a move only accumulates them by surviving repeated scrutiny.</span><span class="ko">마지막 시뮬레이션이 끝나면 엔진은 점수가 가장 높은 수가 아니라 <em>가장 많이 방문된</em> 수를 둡니다. 방문 수가 정직한 표입니다. 반복해서 검증받고 살아남아야만 쌓이니까요.</span></p>
+    </div>
+
+    <div class="stack-tight reveal">
+      <h3><span class="en">The one formula that decides where to look</span><span class="ko">어디를 볼지 정하는 단 하나의 식</span></h3>
+      <div class="formula">score(a) = <span class="hl">Q(a)</span> + <span class="hl2">c_puct · P(a) · √N(parent) / (1 + N(a))</span></div>
+      <div class="legend">
+        <div class="en"><b>Q(a)</b> — how well this move has actually worked so far. <b>Exploit.</b></div>
+        <div class="ko"><b>Q(a)</b> — 지금까지 이 수가 실제로 얼마나 잘 됐는지. <b>활용.</b></div>
+        <div class="en"><b>P(a)</b> — the network's prior hunch, before any search. Unvisited moves ride on it alone. <b>Explore.</b></div>
+        <div class="ko"><b>P(a)</b> — 탐색 전 신경망의 감. 아직 안 가본 수는 이것만 믿고 갑니다. <b>탐험.</b></div>
+        <div class="en"><b>N(a)</b> — visit count. The more a move is tried, the smaller its exploration bonus gets, so attention drifts elsewhere.</div>
+        <div class="ko"><b>N(a)</b> — 방문 횟수. 많이 가본 수일수록 탐험 보너스가 줄어 관심이 다른 곳으로 옮겨갑니다.</div>
+        <div class="mono small">c_puct = 1.6 · fpu_reduction = 0.25 · dirichlet(α=0.15, weight=0.25) at the root only</div>
+      </div>
+      <p class="small"><span class="en">During self-play only, noise is mixed into the root priors so the engine is forced to try moves it does not believe in. Without it the loop would practise the same opening forever.</span><span class="ko">자기대국 때만 뿌리의 사전확률에 잡음을 섞습니다. 스스로 믿지 않는 수도 억지로 시도하게 만들기 위해서입니다. 이게 없으면 같은 포석만 영원히 연습하게 됩니다.</span></p>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 900 250" role="img" aria-label="Thirty-two games are searched at once; each contributes one leaf position per iteration, and those leaves are stacked into a single batch for one network call.">
+        <text class="d-t" x="16" y="18">32 games, searched in lockstep</text>
+        <g>
+          <path class="d-line" d="M40 70 L40 92 M40 92 L20 118 M40 92 L60 118"/>
+          <circle cx="40" cy="66" r="6" fill="var(--surface)" stroke="currentColor"/>
+          <circle cx="20" cy="122" r="5" fill="var(--accent)" stroke="none"/>
+          <circle cx="60" cy="122" r="5" fill="var(--surface)" stroke="currentColor"/>
+        </g>
+        <g transform="translate(96,0)">
+          <path class="d-line" d="M40 70 L40 92 M40 92 L20 118 M40 92 L60 118"/>
+          <circle cx="40" cy="66" r="6" fill="var(--surface)" stroke="currentColor"/>
+          <circle cx="20" cy="122" r="5" fill="var(--surface)" stroke="currentColor"/>
+          <circle cx="60" cy="122" r="5" fill="var(--accent)" stroke="none"/>
+        </g>
+        <g transform="translate(192,0)">
+          <path class="d-line" d="M40 70 L40 92 M40 92 L20 118 M40 92 L60 118"/>
+          <circle cx="40" cy="66" r="6" fill="var(--surface)" stroke="currentColor"/>
+          <circle cx="20" cy="122" r="5" fill="var(--accent)" stroke="none"/>
+          <circle cx="60" cy="122" r="5" fill="var(--surface)" stroke="currentColor"/>
+        </g>
+        <text class="d-t-s" x="330" y="100">… 29 more</text>
+        <text class="d-t-a" x="16" y="238">one leaf each, per iteration</text>
+
+        <path class="d-line-a" d="M20 132 Q200 200 420 176" marker-end="url(#ar-a)"/>
+        <path class="d-line-a" d="M156 132 Q280 200 420 180" marker-end="url(#ar-a)"/>
+        <path class="d-line-a" d="M212 132 Q320 196 420 184" marker-end="url(#ar-a)"/>
+
+        <rect class="d-box-a" x="428" y="146" width="184" height="70" rx="2"/>
+        <text class="d-t" x="520" y="174" text-anchor="middle">one batch</text>
+        <text class="d-t-s" x="520" y="194" text-anchor="middle">(32, 5, 15, 15) float32</text>
+
+        <line class="d-line-a" x1="612" y1="181" x2="656" y2="181" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="662" y="146" width="150" height="70" rx="2"/>
+        <text class="d-t" x="737" y="174" text-anchor="middle">GPU / ANE</text>
+        <text class="d-t-s" x="737" y="194" text-anchor="middle">1 network call</text>
+
+        <path class="d-line" d="M812 166 L860 166 L860 46 L96 46" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="486" y="38" text-anchor="middle">32 policies + 32 values come back, and every tree backs up its own</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">The trick that makes MCTS in pure Python fast enough. Nothing here is threaded — the parallelism <em>is</em> the batch. Measured: 8,541 positions/s on an M-series Mac.</span><span class="ko">순수 파이썬 MCTS를 쓸 만하게 만드는 요령입니다. 스레드는 하나도 없습니다. 병렬성은 곧 배치입니다. 실측: M 시리즈 Mac에서 초당 8,541 국면.</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 4. HUNCH VS PLAN ============ -->
+<section id="sharpen">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">04</span><h2><span class="en">Search sharpens the hunch — and the hunch is retrained on the result</span><span class="ko">탐색이 감을 다듬고, 그 결과로 다시 감을 가르친다</span></h2></div>
+      <p class="sub en">This is the exact moment learning happens. The network's raw guess is soft and spread out. After 160 simulations the visit counts are sharper and better. That sharper distribution becomes the training target — so next time, the network guesses it directly.</p>
+      <p class="sub ko">학습이 일어나는 바로 그 지점입니다. 신경망의 날것 추측은 흐릿하게 퍼져 있습니다. 160번 시뮬레이션을 돌리면 방문 분포는 더 날카롭고 더 정확해집니다. 그 날카로운 분포가 학습 목표가 되고, 다음번엔 신경망이 그것을 바로 맞힙니다.</p>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Before and after search, on the same position</span><span class="ko">같은 국면, 탐색 전과 후</span></h3>
+        <div class="ctrls">
+          <button class="btn on" id="heat-both" aria-pressed="true"><span class="en">Both</span><span class="ko">나란히</span></button>
+          <button class="btn" id="heat-fade" aria-pressed="false"><span class="en">Cross-fade</span><span class="ko">겹쳐 보기</span></button>
+        </div>
+      </div>
+      <div class="heat-wrap" id="heat-wrap">
+        <div class="heat-cell">
+          <h4><span class="en">Network policy P — one forward pass</span><span class="ko">신경망 정책 P — 순전파 한 번</span></h4>
+          <svg id="heat-p" viewBox="0 0 150 150" role="img" aria-label="A heatmap of the network's raw move probabilities, spread softly over several areas."></svg>
+          <p class="small en">One forward pass. ~0.1 ms. A vague sense of "around there".</p>
+          <p class="small ko">순전파 한 번. 약 0.1 ms. "대충 저 근처"라는 흐릿한 감각.</p>
+        </div>
+        <div class="heat-cell">
+          <h4><span class="en">MCTS visits π — after 160 sims</span><span class="ko">MCTS 방문 분포 π — 160회 탐색 후</span></h4>
+          <svg id="heat-v" viewBox="0 0 150 150" role="img" aria-label="A heatmap of MCTS visit counts, concentrated on two points."></svg>
+          <p class="small en">160 simulations. ~35 ms. A near-decision.</p>
+          <p class="small ko">160번의 시뮬레이션. 약 35 ms. 거의 결론에 가까운 분포.</p>
+        </div>
+      </div>
+      <p class="small" style="margin-top:14px"><span class="en">Illustrative distributions, drawn to show the shape of the change — not a capture from a real run.</span><span class="ko">변화의 모양을 보여주기 위한 예시 분포이며, 실제 실행에서 캡처한 값은 아닙니다.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. TRAINING ============ -->
+<section id="train">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">05</span><h2><span class="en">Learning: two targets, one loss</span><span class="ko">학습: 목표는 둘, 손실은 하나</span></h2></div>
+      <p class="sub en">A self-play game is stored as a move list plus one policy vector per ply — about 20× smaller than storing the input tensors, and it means the encoding can change without throwing away the data. Training draws 512 random positions from the last 400,000 and takes one AdamW step.</p>
+      <p class="sub ko">자기대국은 수순 목록과 수마다의 정책 벡터로 저장됩니다. 입력 텐서를 저장하는 것보다 약 20배 작고, 인코딩을 바꿔도 기존 데이터를 버리지 않아도 됩니다. 학습은 최근 40만 국면에서 512개를 무작위로 뽑아 AdamW 한 스텝을 밟습니다.</p>
+    </div>
+
+    <div class="stack-tight reveal">
+      <div class="formula">loss = <span class="hl">− Σ π·log p</span>  +  1.0 · <span class="hl2">(z − v)²</span></div>
+      <div class="legend">
+        <div class="en"><b>π</b> the MCTS visit distribution &nbsp;→&nbsp; <b>p</b> the network's policy. Cross-entropy: “guess what search concluded.”</div>
+        <div class="ko"><b>π</b> MCTS 방문 분포 &nbsp;→&nbsp; <b>p</b> 신경망의 정책. 교차 엔트로피: “탐색이 내린 결론을 맞혀라.”</div>
+        <div class="en"><b>z</b> who actually won, from this player's side &nbsp;→&nbsp; <b>v</b> the network's guess. Squared error: “know when you are losing.”</div>
+        <div class="ko"><b>z</b> 이 국면의 차례인 쪽 기준으로 실제 승패 &nbsp;→&nbsp; <b>v</b> 신경망의 예측. 제곱 오차: “질 때는 지고 있음을 알아라.”</div>
+        <div class="mono small">AdamW · weight_decay 1e-4 · grad_clip 4.0 · lr 2e-3 warmup 200 → cosine → 2e-4</div>
+      </div>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">How one game becomes training data</span><span class="ko">한 판이 학습 데이터가 되는 방법</span></h3>
+        <span class="small mono">omok/replay.py</span>
+      </div>
+      <p style="margin-bottom:16px"><span class="en"><b>Not only the winning games, and not the game as a whole.</b> Every single ply of every single game — won, lost or drawn — becomes one independent training row. A 40-move game yields 40 rows. The loss is computed per position, never per game.</span><span class="ko"><b>이긴 판만 쓰는 것도 아니고, 판 단위로 학습하는 것도 아닙니다.</b> 이기든 지든 비기든, 모든 판의 모든 한 수가 각각 독립적인 학습 행 하나가 됩니다. 40수짜리 판이면 40행입니다. 손실은 국면 단위로 계산되지, 판 단위로 계산되지 않습니다.</span></p>
+      <p style="margin-bottom:16px"><span class="en">The trick is the <b>value target z</b>. It is the final result seen from the side that was about to move at <em>that</em> ply — so in a game black won, black's plies get <span class="mono">z = +1</span> and white's plies get <span class="mono">z = −1</span>. One game therefore teaches both "this is what winning looked like" and "this is what losing looked like".</span><span class="ko">핵심은 <b>가치 목표 z</b>입니다. z는 <em>그 수</em>를 둘 차례였던 쪽의 시점에서 본 최종 결과입니다. 그래서 흑이 이긴 판에서는 흑 차례였던 수들은 <span class="mono">z = +1</span>, 백 차례였던 수들은 <span class="mono">z = −1</span>이 됩니다. 한 판이 "이런 게 이기는 모양이다"와 "이런 게 지는 모양이다"를 동시에 가르치는 셈입니다.</span></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th>ply t</th>
+            <th><span class="en">to move</span><span class="ko">차례</span></th>
+            <th><span class="en">input planes</span><span class="ko">입력 평면</span></th>
+            <th><span class="en">policy target</span><span class="ko">정책 목표</span> <span class="gr">π</span></th>
+            <th><span class="en">value target</span><span class="ko">가치 목표</span> <span class="gr">z</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="mono">0</td><td class="mono">● black</td><td class="mono">empty board</td><td class="mono">visits at ply 0</td><td class="mono">+1</td></tr>
+            <tr><td class="mono">1</td><td class="mono">○ white</td><td class="mono">1 stone</td><td class="mono">visits at ply 1</td><td class="mono">−1</td></tr>
+            <tr><td class="mono">2</td><td class="mono">● black</td><td class="mono">2 stones</td><td class="mono">visits at ply 2</td><td class="mono">+1</td></tr>
+            <tr><td class="mono">…</td><td class="mono">…</td><td class="mono">…</td><td class="mono">…</td><td class="mono">…</td></tr>
+            <tr class="hi"><td class="mono">38</td><td class="mono">● black</td><td class="mono">38 stones</td><td class="mono">visits at ply 38</td><td class="mono">+1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top:12px"><span class="en">A 39-ply game that black won. Draws give every row <span class="mono">z = 0</span>. A lost game is just as useful: its rows carry <span class="mono">z = −1</span> for the side that lost, which is how the network learns what a losing shape feels like.</span><span class="ko">흑이 이긴 39수짜리 판입니다. 비기면 모든 행이 <span class="mono">z = 0</span>입니다. 진 판도 똑같이 쓸모 있습니다. 진 쪽의 행에 <span class="mono">z = −1</span>이 붙고, 그것으로 신경망은 지는 모양이 어떤 느낌인지 배웁니다.</span></p>
+
+<pre class="code" style="margin-top:20px"><i># omok/replay.py — building the rows from a stored game</i>
+
+for game in shard:                               <i># won, lost and drawn games alike</i>
+    for t, move in enumerate(game.moves):
+        player = <b>BLACK if t % 2 == 0 else WHITE</b>  <i># whose turn at ply t</i>
+        pi[t] = game.policies[t]                 <i># the MCTS visit distribution</i>
+        z[t]  = 0.0 if winner == 0 else (<u>+1.0</u> if winner == player else <s>-1.0</s>)
+
+<i># omok/train.py — one optimisation step, run 400 times per iteration</i>
+
+planes, pi, z = buffer.<b>sample(512)</b>   <i># 512 random *positions*, any games</i>
+planes, pi    = augment(planes, pi)  <i># a random one of the 8 symmetries</i>
+
+logits, v   = net(planes)
+policy_loss = <u>-(pi * log_softmax(logits)).sum(-1).mean()</u>  <i># match the search</i>
+value_loss  = <s>mse(v, z)</s>                                   <i># match the outcome</i>
+loss = policy_loss + 1.0 * value_loss
+
+loss.backward(); clip_grad_norm_(net, 4.0); opt.step()  <i># AdamW</i></pre>
+      <p class="note" style="margin-top:18px"><span class="en">So the 512 positions in one batch are drawn at random from the last 400,000 stored positions — different games, different iterations, different plies, all mixed. Nothing is trained "game by game", and no game is filtered out for having been lost.</span><span class="ko">따라서 한 배치의 512개 국면은 최근 40만 국면에서 무작위로 뽑힙니다. 서로 다른 판, 서로 다른 반복, 서로 다른 수순이 뒤섞입니다. "판 단위"로 학습하는 부분은 어디에도 없고, 졌다는 이유로 걸러지는 판도 없습니다.</span></p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Free data: the board has eight identical faces</span><span class="ko">공짜 데이터: 판에는 똑같은 얼굴이 여덟 개 있다</span></h3>
+        <div class="ctrls">
+          <button class="btn" id="sym-prev">←</button>
+          <button class="btn" id="sym-next">→</button>
+          <button class="btn on" id="sym-auto" aria-pressed="true"><span class="en">Auto</span><span class="ko">자동</span></button>
+        </div>
+      </div>
+      <div class="sym-wrap">
+        <svg id="sym-svg" viewBox="0 0 150 150" role="img" aria-label="A small board with four stones, rotated and mirrored through the eight symmetries of a square."></svg>
+        <div>
+          <div class="symk" id="sym-label">k = 0</div>
+          <p class="en" style="margin-top:8px">Rotate a gomoku position 90°, or mirror it, and it is still the same position — the right move just moves with it. So every stored position is really eight, and each training sample gets a random one of the eight. The network stops memorising corners and starts learning shapes.</p>
+          <p class="ko" style="margin-top:8px">오목 국면을 90° 돌리거나 뒤집어도 같은 국면입니다. 좋은 수도 함께 따라 움직일 뿐입니다. 그래서 저장된 국면 하나가 사실은 여덟 개이고, 학습 샘플마다 그중 하나를 무작위로 씁니다. 신경망은 구석의 좌표를 외우는 대신 모양을 배우게 됩니다.</p>
+          <p class="small mono" style="margin-top:10px">omok/encode.py · transform_planes(k) + transform_policy(k)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. BACKPROP ============ -->
+<section id="backprop">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">06</span><h2><span class="en">Backpropagation: where the gradient actually comes from</span><span class="ko">역전파: 기울기는 실제로 어디서 오나</span></h2></div>
+      <p class="sub en">A natural guess is that the forward pass already works out the gradients, and backward just multiplies them together. Half of that is right. The forward pass caches <em>values</em>, not gradients — the derivatives are computed on the way back, from those cached values.</p>
+      <p class="sub ko">순전파가 이미 기울기를 계산해 두고 역전파는 그걸 곱하기만 한다고 짐작하기 쉽습니다. 절반은 맞습니다. 순전파가 저장하는 것은 기울기가 아니라 <em>값</em>이고, 미분은 돌아오는 길에 그 저장된 값으로 계산됩니다.</p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Proof it is values, not gradients</span><span class="ko">기울기가 아니라 값을 저장한다는 증거</span></h3>
+        <span class="small mono">omok/backends/torch_backend.py:125</span>
+      </div>
+      <div class="formula"><span class="hl">@torch.no_grad()</span>&nbsp; def predict(...)  &nbsp;&nbsp;<span style="color:var(--muted)">← on the MCTS path</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; def train_step(...) &nbsp;<span style="color:var(--muted)">← no decorator</span></div>
+      <p style="margin-top:16px"><span class="en">The decorator tells PyTorch not to build the graph at all. If the forward pass had already produced the gradients, turning it off would save nothing — but it is exactly what lets self-play run 8,541 positions per second. What it actually saves is <b>memory</b>: at batch 512 one trunk activation is</span><span class="ko">이 데코레이터는 그래프를 아예 만들지 말라는 뜻입니다. 순전파가 이미 기울기를 만들어 뒀다면 이걸 끈다고 아낄 게 없겠죠. 실제로 아끼는 것은 <b>메모리</b>입니다. 배치 512에서 trunk 한 층의 activation은</span></p>
+      <div class="formula" style="margin-top:14px">512 × 96 × 15 × 15 × 4 bytes ≈ <span class="hl">44 MB</span> &nbsp;×&nbsp; 13 <span style="color:var(--muted)">layers to keep</span> ≈ <span class="hl">570 MB</span></div>
+      <p class="small" style="margin-top:12px"><span class="en">Held during training, zero during inference. That memory <em>is</em> the cache the backward pass reads.</span><span class="ko">학습 중에만 붙들고 있고 추론 때는 0입니다. 그 메모리가 바로 역전파가 읽는 캐시입니다.</span></p>
+    </div>
+
+    <div class="stack-tight reveal">
+      <h3><span class="en">The exact scalar that gets differentiated</span><span class="ko">미분되는 정확한 스칼라</span></h3>
+      <div class="formula">L = <span class="hl">−(1/B) · Σ<sub>b</sub> Σ<sub>a</sub> π<sub>b,a</sub> · log p<sub>b,a</sub></span>  +  1.0 · <span class="hl2">(1/B) · Σ<sub>b</sub> (v<sub>b</sub> − z<sub>b</sub>)²</span></div>
+      <div class="legend">
+        <div class="mono small">B = 512 · a = 225 points · value_loss_weight = 1.0</div>
+        <div class="en"><b>Not in this formula:</b> <span class="mono">weight_decay 1e-4</span> — AdamW is <em>decoupled</em>, it shrinks the weights inside <span class="mono">opt.step()</span> rather than adding an L2 term to L.</div>
+        <div class="ko"><b>이 식에 없는 것:</b> <span class="mono">weight_decay 1e-4</span> — AdamW는 <em>decoupled</em> 방식이라 L에 L2 항을 더하는 대신 <span class="mono">opt.step()</span> 안에서 직접 가중치를 줄입니다.</div>
+        <div class="en"><b>Also not in it:</b> <span class="mono">target_entropy</span> — computed under <span class="mono">with torch.no_grad()</span> at line 157. Logging only.</div>
+        <div class="ko"><b>역시 없는 것:</b> <span class="mono">target_entropy</span> — 157행에서 <span class="mono">with torch.no_grad()</span>로 계산합니다. 로깅 전용입니다.</div>
+      </div>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 980 300" role="img" aria-label="The backward pass: a seed gradient of one is placed at the loss, splits into the two heads where it becomes p minus pi and two times v minus z, the two branches add at the trunk split point, and the sum flows back through the residual blocks and the stem into the weight gradients.">
+        <text class="d-t-s" x="16" y="20">backward walks the recorded graph in reverse — each arrow is one vector-Jacobian product, using tensors cached during forward</text>
+        <path class="d-line d-dash" d="M16 30 L964 30" opacity=".3"/>
+
+        <rect class="d-box-a" x="812" y="112" width="150" height="80" rx="2"/>
+        <text class="d-t" x="887" y="140" text-anchor="middle">L — one scalar</text>
+        <text class="d-t-a" x="887" y="160" text-anchor="middle">∂L/∂L = 1.0</text>
+        <text class="d-t-s" x="887" y="178" text-anchor="middle">the seed, always</text>
+
+        <path class="d-line-a" d="M812 138 L794 138 L794 60 L788 60" marker-end="url(#ar-a)"/>
+        <path class="d-line-a" d="M812 166 L794 166 L794 240 L788 240" marker-end="url(#ar-a)"/>
+
+        <rect class="d-box" x="606" y="42" width="180" height="72" rx="2"/>
+        <text class="d-t" x="696" y="70" text-anchor="middle">policy head</text>
+        <text class="d-t-a" x="696" y="90" text-anchor="middle">∂L/∂logits = (p − π)/B</text>
+        <text class="d-t-s" x="696" y="106" text-anchor="middle">needs p and π — not L</text>
+
+        <rect class="d-box" x="606" y="206" width="180" height="72" rx="2"/>
+        <text class="d-t" x="696" y="234" text-anchor="middle">value head</text>
+        <text class="d-t-a" x="696" y="254" text-anchor="middle">∂L/∂v = 2·1.0·(v − z)/B</text>
+        <text class="d-t-s" x="696" y="270" text-anchor="middle">needs v and z — not L</text>
+
+        <path class="d-line-a" d="M606 78 L540 78 L540 128" marker-end="url(#ar-a)"/>
+        <path class="d-line-a" d="M606 242 L540 242 L540 182" marker-end="url(#ar-a)"/>
+        <circle cx="540" cy="155" r="22" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.4"/>
+        <text class="d-t" x="540" y="161" text-anchor="middle" fill="var(--accent)">+</text>
+        <path class="d-line d-dash" d="M500 228 L526 172" opacity=".6"/>
+        <text class="d-t-s" x="428" y="232" text-anchor="middle">the two heads add here</text>
+
+        <line class="d-line-a" x1="518" y1="155" x2="474" y2="155" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="316" y="112" width="156" height="86" rx="2"/>
+        <text class="d-t" x="394" y="146" text-anchor="middle">6 × residual block</text>
+        <text class="d-t-s" x="394" y="166" text-anchor="middle">two routes down —</text>
+        <text class="d-t-s" x="394" y="182" text-anchor="middle">see the next figure</text>
+
+        <line class="d-line-a" x1="316" y1="155" x2="272" y2="155" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="164" y="120" width="106" height="70" rx="2"/>
+        <text class="d-t" x="217" y="152" text-anchor="middle">stem</text>
+        <text class="d-t-s" x="217" y="170" text-anchor="middle">3×3 conv</text>
+
+        <line class="d-line-a" x1="164" y1="155" x2="122" y2="155" marker-end="url(#ar-a)"/>
+        <rect class="d-box-a" x="16" y="120" width="104" height="70" rx="2"/>
+        <text class="d-t" x="68" y="152" text-anchor="middle">∂L/∂W</text>
+        <text class="d-t-s" x="68" y="170" text-anchor="middle">1,265,822</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">The scalar value of L appears nowhere on this path. Only the seed <span class="mono">1.0</span> and the tensors cached during forward — <span class="mono">p, π, v, z</span> — are read. <span class="mono">value_loss_weight</span> is the one knob that changes the mix at the <span class="mono">+</span> node.</span><span class="ko">이 경로 어디에도 L의 값 자체는 등장하지 않습니다. 읽는 것은 씨앗 <span class="mono">1.0</span>과 순전파 때 캐시한 텐서 <span class="mono">p, π, v, z</span>뿐입니다. <span class="mono">value_loss_weight</span>는 <span class="mono">+</span> 지점의 배합을 바꾸는 유일한 손잡이입니다.</span></figcaption>
+    </figure>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 760 224" role="img" aria-label="Backward through one residual block: the gradient arriving at the add node is copied to both branches, shrinking through the two convolutions on one route and passing unchanged along the skip connection on the other, and the two are summed at the block input.">
+        <text class="d-t-s" x="16" y="20">inside one residual block, on the way back</text>
+
+        <text class="d-t-a" x="744" y="128" text-anchor="end">g</text>
+        <line class="d-line-a" x1="730" y1="145" x2="686" y2="145" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="570" y="121" width="112" height="48" rx="2"/>
+        <text class="d-t" x="626" y="150" text-anchor="middle">relu&#8242;</text>
+
+        <line class="d-line-a" x1="570" y1="145" x2="534" y2="145" marker-end="url(#ar-a)"/>
+        <circle cx="512" cy="145" r="20" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.4"/>
+        <text class="d-t" x="512" y="151" text-anchor="middle" fill="var(--accent)">+</text>
+        <text class="d-t-s" x="512" y="188" text-anchor="middle">forward: add</text>
+        <text class="d-t-s" x="512" y="204" text-anchor="middle">backward: copy to both</text>
+
+        <path class="d-line-a" d="M512 125 L512 76 L470 76" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="326" y="52" width="144" height="48" rx="2"/>
+        <text class="d-t" x="398" y="81" text-anchor="middle">conv2&#8242; · bn2&#8242;</text>
+        <line class="d-line-a" x1="326" y1="76" x2="292" y2="76" marker-end="url(#ar-a)"/>
+        <rect class="d-box" x="128" y="52" width="164" height="48" rx="2"/>
+        <text class="d-t" x="210" y="81" text-anchor="middle">conv1&#8242; · bn1&#8242; · relu&#8242;</text>
+        <path class="d-line-a" d="M128 76 L92 76 L92 132" marker-end="url(#ar-a)"/>
+        <text class="d-t-s" x="398" y="36" text-anchor="middle">× Wᵀ at every layer — this route shrinks</text>
+
+        <path class="d-line-a" d="M492 145 L92 145" marker-end="url(#ar-a)" stroke-width="3"/>
+        <text class="d-t-a" x="300" y="136" text-anchor="middle">× 1 — passes through untouched</text>
+        <text class="d-t-s" x="300" y="166" text-anchor="middle">∂(x + y)/∂x = 1 · the gradient highway</text>
+
+        <rect class="d-box-a" x="16" y="121" width="76" height="48" rx="2"/>
+        <text class="d-t" x="54" y="150" text-anchor="middle">∂L/∂x</text>
+        <text class="d-t-s" x="54" y="188" text-anchor="middle">the two add</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">This is the whole reason a 6-block tower trains at all. Stack six blocks without the skip and the gradient reaching the stem has been multiplied down six times over; with it, there is always a route home that multiplies by exactly 1.</span><span class="ko">6블록 타워가 학습되는 이유가 바로 이것입니다. 스킵 없이 여섯 블록을 쌓으면 stem까지 내려온 기울기는 여섯 번 곱해져 작아져 있습니다. 스킵이 있으면 정확히 1을 곱하는 귀갓길이 항상 하나 열려 있습니다.</span></figcaption>
+    </figure>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Does the value of the loss matter? Try it</span><span class="ko">loss 값이 정말 영향을 줄까? 직접 해보세요</span></h3>
+        <div class="ctrls" id="bp-modes"></div>
+      </div>
+      <div class="formula" id="bp-expr"></div>
+      <div class="bp-grid">
+        <div class="bp-stat"><span class="k">loss value</span><b id="bp-loss">3.41</b></div>
+        <div class="bp-stat hot"><span class="k">seed ∂L/∂L</span><b id="bp-seed">1.00</b></div>
+        <div class="bp-stat" id="bp-cbox"><span class="k">reaches the heads as</span><b id="bp-c">× 1</b></div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th><span class="en">point</span><span class="ko">지점</span></th>
+            <th><span class="gr">π</span> <span class="en">(MCTS)</span><span class="ko">(탐색)</span></th>
+            <th>p <span class="en">(network)</span><span class="ko">(신경망)</span></th>
+            <th>∂L/∂logit &nbsp;<span class="gr">× B</span></th>
+          </tr></thead>
+          <tbody id="bp-rows"></tbody>
+        </table>
+      </div>
+      <p class="verdictline" id="bp-verdict" style="margin-top:16px"></p>
+    </div>
+
+    <div class="stack-tight reveal">
+      <h3><span class="en">So where is the loss value used at all?</span><span class="ko">그럼 loss 값은 어디에 쓰이나?</span></h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th><span class="en">used by</span><span class="ko">쓰이는 곳</span></th>
+            <th><span class="en">what for</span><span class="ko">무엇에</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="mono">train.step log</td><td><span class="en">printed, smoothed with an EMA of 0.9 — for you to read</span><span class="ko">EMA 0.9로 부드럽게 만들어 출력 — 사람이 읽으라고</span></td></tr>
+            <tr><td class="mono">your eyes</td><td><span class="en">spotting NaN or divergence</span><span class="ko">NaN이나 발산을 눈으로 확인</span></td></tr>
+            <tr><td class="mono">learning rate</td><td><span class="en"><b>not used</b> — <span class="mono">lr_at(step)</span> reads the step count only</span><span class="ko"><b>안 씀</b> — <span class="mono">lr_at(step)</span>은 스텝 수만 봅니다</span></td></tr>
+            <tr><td class="mono">grad_clip 4.0</td><td><span class="en"><b>not used</b> — clips on the gradient norm</span><span class="ko"><b>안 씀</b> — 기울기 norm 기준으로 자릅니다</span></td></tr>
+            <tr><td class="mono">promotion</td><td><span class="en"><b>not used</b> — decided by the arena win rate, 0.55</span><span class="ko"><b>안 씀</b> — 아레나 승률 0.55로 결정합니다</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><span class="en">A run whose loss keeps falling can still fail the arena and never be promoted. Loss is a readout, not a controller.</span><span class="ko">loss가 계속 내려가는 학습도 아레나에서 떨어져 끝내 승격되지 않을 수 있습니다. loss는 계기판이지 조종간이 아닙니다.</span></p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Bonus: how to read policy_loss in the log</span><span class="ko">덧: 로그의 policy_loss 읽는 법</span></h3>
+      </div>
+      <div class="formula">policy_loss = <span style="color:var(--muted)">H(π)</span> + <span class="hl">D<sub>KL</sub>(π ‖ p)</span>  &nbsp;&nbsp;<span style="color:var(--muted)">→ target_entropy is the floor, the rest is what is left to learn</span></div>
+      <div class="klbar" style="margin-top:18px">
+        <div class="klrow">
+          <span class="lab">early · iteration 5</span>
+          <span class="track"><span class="seg h" style="width:80%"></span><span class="seg kl" style="width:11%"></span></span>
+          <span class="num">4.10 = 3.60 + 0.50</span>
+        </div>
+        <div class="klrow">
+          <span class="lab">later · iteration 80</span>
+          <span class="track"><span class="seg h" style="width:53%"></span><span class="seg kl" style="width:3%"></span></span>
+          <span class="num">2.52 = 2.40 + 0.12</span>
+        </div>
+        <div class="klkey">
+          <span><i style="background:color-mix(in srgb, var(--muted) 34%, transparent)"></i><span class="en">target_entropy H(π) — the floor</span><span class="ko">target_entropy H(π) — 하한</span></span>
+          <span><i style="background:color-mix(in srgb, var(--accent) 40%, transparent)"></i><span class="en">KL — how far the network still is from the search</span><span class="ko">KL — 신경망이 탐색에서 아직 얼마나 떨어져 있나</span></span>
+        </div>
+      </div>
+      <p class="small" style="margin-top:16px"><span class="en">So do not read <span class="mono">policy_loss</span> on its own — read the <em>gap</em> to <span class="mono">target_entropy</span>. Both numbers fall over a run: the entropy falls because the search itself gets sharper, and the gap falls because the network is catching up. Illustrative numbers, shown to make the shape clear.</span><span class="ko"><span class="mono">policy_loss</span>만 보지 말고 <span class="mono">target_entropy</span>와의 <em>격차</em>를 보세요. 학습이 진행되면 두 값 모두 내려갑니다. 엔트로피는 탐색 자체가 날카로워져서 내려가고, 격차는 신경망이 따라잡아서 내려갑니다. 모양을 보여주기 위한 예시 수치입니다.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. GATE ============ -->
+<section id="gate">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">07</span><h2><span class="en">The gate: a new model has to earn the job</span><span class="ko">관문: 새 모델은 자리를 얻어내야 한다</span></h2></div>
+      <p class="sub en">Lower loss does not mean better play. So before the new network is allowed to generate any data, it plays 24 games against the reigning best, taking black in half of them. Draws count half a point. Drag the score.</p>
+      <p class="sub ko">손실이 줄었다고 더 잘 두는 것은 아닙니다. 그래서 새 신경망은 데이터를 만들기 전에 현 최선 모델과 24판을 둡니다. 절반은 흑을 잡습니다. 무승부는 0.5점. 점수를 움직여 보세요.</p>
+    </div>
+    <div class="panel gate reveal">
+      <div class="gatebar">
+        <div class="gatefill" id="gatefill"></div>
+        <div class="gatemark"><span>0.55</span></div>
+      </div>
+      <div class="gaterow">
+        <span class="scoreval" id="scoreval">0.58</span>
+        <input type="range" id="scorerange" min="0" max="100" value="58" aria-label="Candidate score against the current best">
+        <span class="verdict" id="verdict"></span>
+      </div>
+      <p class="small" id="gatetext"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. INFERENCE ============ -->
+<section id="play">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">08</span><h2><span class="en">Inference: the same search, without the learning</span><span class="ko">추론: 학습을 뺀, 똑같은 탐색</span></h2></div>
+      <p class="sub en">Playing is training's self-play phase with three things removed: no Dirichlet noise, no temperature sampling, and nothing gets written to disk. The identical <span class="mono">omok/mcts.py</span> runs behind the desktop window and, re-implemented in Swift, behind the phone.</p>
+      <p class="sub ko">대국은 학습의 자기대국 단계에서 세 가지를 뺀 것입니다. 디리클레 잡음 없음, 온도 샘플링 없음, 디스크 기록 없음. 데스크톱 창 뒤에서도, Swift로 옮겨 놓은 휴대폰 안에서도 같은 <span class="mono">omok/mcts.py</span>가 돕니다.</p>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 940 300" role="img" aria-label="The best checkpoint is exported to a CoreML package; inside the app a board is encoded to planes, the model returns a policy and value, PUCT search uses them, and a move comes out.">
+        <rect class="d-box-a" x="16" y="36" width="140" height="66" rx="2"/>
+        <text class="d-t" x="86" y="64" text-anchor="middle">best.npz</text>
+        <text class="d-t-s" x="86" y="82" text-anchor="middle">plain numpy arrays</text>
+
+        <line class="d-line" x1="156" y1="69" x2="200" y2="69" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="178" y="59" text-anchor="middle">make export</text>
+
+        <rect class="d-box" x="206" y="24" width="176" height="90" rx="2"/>
+        <text class="d-t" x="294" y="52" text-anchor="middle">OmokNet.mlpackage</text>
+        <text class="d-t-s" x="294" y="72" text-anchor="middle">2.53 MB float16</text>
+        <text class="d-t-s" x="294" y="90" text-anchor="middle">+ model_meta.json</text>
+
+        <line class="d-line" x1="382" y1="69" x2="426" y2="69" marker-end="url(#ar)"/>
+        <rect class="d-box" x="432" y="36" width="150" height="66" rx="2"/>
+        <text class="d-t" x="507" y="64" text-anchor="middle">iPhone / Mac app</text>
+        <text class="d-t-s" x="507" y="82" text-anchor="middle">Neural Engine</text>
+
+        <path class="d-line d-dash" d="M507 102 L507 140" marker-end="url(#ar)"/>
+
+        <rect x="16" y="152" width="908" height="132" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity=".35"/>
+        <text class="d-t-s" x="30" y="172">inside the app, once per move:</text>
+
+        <rect class="d-box" x="30" y="188" width="132" height="72" rx="2"/>
+        <text class="d-t" x="96" y="216" text-anchor="middle">board</text>
+        <text class="d-t-s" x="96" y="234" text-anchor="middle">whose turn is it</text>
+
+        <line class="d-line" x1="162" y1="224" x2="200" y2="224" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="181" y="214" text-anchor="middle">encode</text>
+
+        <rect class="d-box" x="206" y="188" width="150" height="72" rx="2"/>
+        <text class="d-t" x="281" y="216" text-anchor="middle">planes</text>
+        <text class="d-t-s" x="281" y="234" text-anchor="middle">(1, 5, 15, 15) NCHW</text>
+
+        <line class="d-line" x1="356" y1="224" x2="394" y2="224" marker-end="url(#ar)"/>
+
+        <rect class="d-box-a" x="400" y="188" width="150" height="72" rx="2"/>
+        <text class="d-t" x="475" y="216" text-anchor="middle">CoreML model</text>
+        <text class="d-t-s" x="475" y="234" text-anchor="middle">≈ 1 ms per position</text>
+
+        <line class="d-line" x1="550" y1="224" x2="588" y2="224" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="569" y="214" text-anchor="middle">P, v</text>
+
+        <rect class="d-box-w" x="594" y="188" width="160" height="72" rx="2"/>
+        <text class="d-t" x="674" y="216" text-anchor="middle">PUCT search</text>
+        <text class="d-t-s" x="674" y="234" text-anchor="middle">a few hundred sims</text>
+
+        <line class="d-line" x1="754" y1="224" x2="792" y2="224" marker-end="url(#ar)"/>
+        <rect class="d-box" x="798" y="188" width="112" height="72" rx="2"/>
+        <text class="d-t" x="854" y="220" text-anchor="middle">move</text>
+
+        <path class="d-line d-dash" d="M854 188 L854 168 L96 168 L96 186" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="470" y="162" text-anchor="middle">play it, repeat</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">Skipping the search entirely and playing the policy's top point is already a decent opponent — that path is one forward pass. The search is what turns decent into hard.</span><span class="ko">탐색을 아예 건너뛰고 정책 1순위를 바로 두어도 제법 상대가 됩니다. 그 경로는 순전파 한 번이면 끝입니다. 탐색은 그 "제법"을 "까다로움"으로 바꾸는 부분입니다.</span></figcaption>
+    </figure>
+
+    <div class="cards reveal">
+      <div class="card">
+        <span class="kicker">make gui</span>
+        <h3><span class="en">The desktop window</span><span class="ko">데스크톱 창</span></h3>
+        <p class="en">Search runs on a worker thread in chunks of 8 simulations, so the board stays at 60 fps and an undo cancels the search instantly.</p>
+        <p class="ko">탐색은 8 시뮬레이션 단위로 워커 스레드에서 돌아갑니다. 그래서 화면은 60 fps를 유지하고, 무르기를 누르면 탐색이 즉시 취소됩니다.</p>
+        <div class="meta">omok/engine.py · CHUNK = 8</div>
+      </div>
+      <div class="card">
+        <span class="kicker">1 2 3 4</span>
+        <h3><span class="en">Difficulty is just one number</span><span class="ko">난이도는 숫자 하나</span></h3>
+        <p class="en">24 / 100 / 320 / 900 simulations per move. Same weights, same code — only how long it is allowed to think changes.</p>
+        <p class="ko">한 수당 24 / 100 / 320 / 900 시뮬레이션. 가중치도 코드도 그대로이고, 생각할 시간만 달라집니다.</p>
+        <div class="meta">h = hint · a = candidates · u = undo</div>
+      </div>
+      <div class="card">
+        <span class="kicker">any device</span>
+        <h3><span class="en">One checkpoint, four backends</span><span class="ko">체크포인트 하나, 백엔드 넷</span></h3>
+        <p class="en">CUDA → MLX on Apple Silicon → Metal (MPS) → CPU, picked automatically. The <span class="mono">.npz</span> is the same file on all of them.</p>
+        <p class="ko">CUDA → Apple Silicon의 MLX → Metal(MPS) → CPU 순으로 자동 선택됩니다. <span class="mono">.npz</span> 파일은 어디서나 동일합니다.</p>
+        <div class="meta">omok/backends/ · auto</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. RUN IT ============ -->
+<section id="run">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">09</span><h2><span class="en">Pick how much time you have</span><span class="ko">가진 시간에 맞춰 고르기</span></h2></div>
+      <p class="sub en">Same code throughout — the presets only change the board, the network size and how deep the search goes. Times below were measured on an M-series Mac with the MLX backend.</p>
+      <p class="sub ko">코드는 전부 동일하고, 프리셋은 판 크기·신경망 크기·탐색 깊이만 바꿉니다. 아래 시간은 MLX 백엔드를 쓰는 M 시리즈 Mac에서 실측한 값입니다.</p>
+    </div>
+    <div class="tablewrap reveal">
+      <table>
+        <thead><tr>
+          <th>preset</th><th><span class="en">board</span><span class="ko">판</span></th>
+          <th><span class="en">network</span><span class="ko">신경망</span></th><th>sims</th>
+          <th><span class="en">iterations</span><span class="ko">반복</span></th>
+          <th><span class="en">what it is for</span><span class="ko">용도</span></th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="mono">tiny</td><td class="mono">9×9</td><td class="mono">2 × 32</td><td class="mono">24</td><td class="mono">3</td><td><span class="en">30-second smoke test</span><span class="ko">30초 동작 확인</span></td></tr>
+          <tr><td class="mono">blitz</td><td class="mono">15×15</td><td class="mono">4 × 64</td><td class="mono">32</td><td class="mono">30</td><td><span class="en">~10 min — plays legally, blocks the obvious threats</span><span class="ko">약 10분 — 규칙대로 두고 뻔한 위협은 막는다</span></td></tr>
+          <tr><td class="mono">small</td><td class="mono">15×15</td><td class="mono">4 × 64</td><td class="mono">100</td><td class="mono">200</td><td><span class="en">a real run that fits on a laptop</span><span class="ko">노트북에서 돌릴 만한 실전 학습</span></td></tr>
+          <tr><td class="mono">fast</td><td class="mono">15×15</td><td class="mono">6 × 96</td><td class="mono">64</td><td class="mono">60</td><td><span class="en">~30 min — beats a casual human</span><span class="ko">약 30분 — 가벼운 상대는 이긴다</span></td></tr>
+          <tr class="hi"><td class="mono">base</td><td class="mono">15×15</td><td class="mono">6 × 96</td><td class="mono">160</td><td class="mono">1000</td><td><span class="en">the default — 4m12s per iteration, 70h for the full run</span><span class="ko">기본값 — 반복당 4분 12초, 완주에 70시간</span></td></tr>
+          <tr><td class="mono">strong</td><td class="mono">15×15</td><td class="mono">10 × 128</td><td class="mono">400</td><td class="mono">1000</td><td><span class="en">for a CUDA box you leave running</span><span class="ko">계속 켜 둘 CUDA 머신용</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note reveal"><span class="en"><b>Nothing is ever lost.</b> Finished games are flushed every 2 games, checkpoints every 100 steps, and every file is written to a temp name and atomically renamed — so a half-written file can never be read. <span class="mono">Ctrl-C</span> finishes the current unit of work, flushes, and exits; <span class="mono">make resume</span> picks up mid-phase. There is a test that <span class="mono">SIGKILL</span>s a live training process and asserts the run comes back.</span><span class="ko"><b>아무것도 잃지 않습니다.</b> 끝난 대국은 2판마다, 체크포인트는 100스텝마다 기록되고, 모든 파일은 임시 이름으로 쓴 뒤 원자적으로 이름을 바꿉니다. 그래서 쓰다 만 파일을 읽는 일은 생기지 않습니다. <span class="mono">Ctrl-C</span>는 진행 중인 작업 단위를 끝내고 저장한 뒤 종료하며, <span class="mono">make resume</span>가 단계 중간부터 이어받습니다. 학습 프로세스를 <span class="mono">SIGKILL</span>로 죽인 뒤 복구되는지 확인하는 테스트도 있습니다.</span></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="mono" style="text-transform:uppercase; letter-spacing:.14em; font-size:.72rem">code map · 코드 지도</div>
+    <div class="files">
+      <div><b>board.py</b> <span class="en">rules, win detection</span><span class="ko">규칙, 승리 판정</span></div>
+      <div><b>encode.py</b> <span class="en">planes + 8 symmetries</span><span class="ko">평면 + 8개 대칭</span></div>
+      <div><b>netspec.py</b> <span class="en">architecture, weight names</span><span class="ko">구조, 가중치 이름</span></div>
+      <div><b>backends/</b> <span class="en">torch (CUDA/MPS/CPU), mlx</span><span class="ko">torch, mlx</span></div>
+      <div><b>mcts.py</b> <span class="en">batched PUCT search</span><span class="ko">배치 PUCT 탐색</span></div>
+      <div><b>selfplay.py</b> <span class="en">parallel game generation</span><span class="ko">병렬 대국 생성</span></div>
+      <div><b>replay.py</b> <span class="en">shards + sampling</span><span class="ko">샤드 + 샘플링</span></div>
+      <div><b>train.py</b> <span class="en">optimisation, LR schedule</span><span class="ko">최적화, 학습률 스케줄</span></div>
+      <div><b>arena.py</b> <span class="en">promotion gating</span><span class="ko">승격 심사</span></div>
+      <div><b>pipeline.py</b> <span class="en">the resumable orchestrator</span><span class="ko">재개 가능한 오케스트레이터</span></div>
+      <div><b>export.py</b> <span class="en">CoreML / ONNX / npz</span><span class="ko">CoreML / ONNX / npz</span></div>
+      <div><b>engine.py</b> <span class="en">search on a worker thread</span><span class="ko">워커 스레드 탐색</span></div>
+      <div><b>gui.py</b> <span class="en">the Arcade window</span><span class="ko">Arcade 창</span></div>
+      <div><b>effects.py</b> <span class="en">easing, tweens, particles</span><span class="ko">이징, 트윈, 파티클</span></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var $ = function(id){ return document.getElementById(id); };
+var SVGNS = "http://www.w3.org/2000/svg";
+function el(name, attrs, text){
+  var n = document.createElementNS(SVGNS, name);
+  for (var k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+function token(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* ---------------- easing, ported from omok/effects.py ---------------- */
+function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+function easeOutQuad(t){ return 1 - (1 - t) * (1 - t); }
+function easeInOutCubic(t){ return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2; }
+function easeOutBack(t, s){ s = s === undefined ? 1.9 : s; var u = t - 1;
+  return 1 + (s + 1)*u*u*u + s*u*u; }
+function clamp01(v){ return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+/* ---------------- language ---------------- */
+var body = document.body;
+body.setAttribute("data-lang", "en");
+function setLang(l){
+  body.setAttribute("data-lang", l);
+  document.documentElement.setAttribute("lang", l === "ko" ? "ko" : "en");
+  $("lang-en").setAttribute("aria-pressed", String(l === "en"));
+  $("lang-ko").setAttribute("aria-pressed", String(l === "ko"));
+}
+$("lang-en").addEventListener("click", function(){ setLang("en"); });
+$("lang-ko").addEventListener("click", function(){ setLang("ko"); });
+
+/* ---------------- scroll reveal ---------------- */
+if ("IntersectionObserver" in window && !REDUCED){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -60px 0px", threshold: .08 });
+  Array.prototype.forEach.call(document.querySelectorAll(".reveal"), function(n){ io.observe(n); });
+} else {
+  Array.prototype.forEach.call(document.querySelectorAll(".reveal"), function(n){ n.classList.add("in"); });
+}
+
+/* ================= HERO BOARD ================= */
+(function(){
+  var cv = $("hero-board"); if (!cv) return;
+  var ctx = cv.getContext("2d");
+  var N = 15, M = 46, S = (720 - 2*M) / (N - 1), R = S * 0.44;
+  // A scripted game: black builds a diagonal while white builds a row, and
+  // black gets there one move first.
+  var MOVES = [
+    [7,7,1],[8,7,2],[6,8,1],[8,8,2],[5,9,1],[8,6,2],[4,10,1],[8,9,2],[3,11,1]
+  ];
+  var WIN = [[7,7],[6,8],[5,9],[4,10],[3,11]];
+  var T0 = 500, GAP = 480, DROP = 420, RING = 520, HOLD = 1500, FADE = 700;
+  var WIN_START = T0 + MOVES.length*GAP + 200, WIN_STEP = 110, WIN_DUR = 900;
+  var CYCLE = WIN_START + WIN.length*WIN_STEP + WIN_DUR + HOLD + FADE;
+  var C = {};
+  function refresh(){
+    C.grid = token("--grid"); C.b = token("--stone-b"); C.w = token("--stone-w");
+    C.wl = token("--stone-w-line"); C.acc = token("--accent"); C.warm = token("--warm");
+    C.surface = token("--surface"); C.ink = token("--ink");
+  }
+  refresh();
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", refresh);
+  function px(i){ return M + i*S; }
+
+  var sparks = [];
+  function burst(x, y, colour){
+    for (var i = 0; i < 14; i++){
+      var a = Math.random()*Math.PI*2, sp = 60 + Math.random()*190;
+      sparks.push({x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 40,
+                   life:0, ttl:.55 + Math.random()*.35, c:colour});
+    }
+  }
+
+  function grid(){
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    for (var i = 0; i < N; i++){
+      ctx.moveTo(px(0), px(i)); ctx.lineTo(px(N-1), px(i));
+      ctx.moveTo(px(i), px(0)); ctx.lineTo(px(i), px(N-1));
+    }
+    ctx.stroke();
+    ctx.fillStyle = C.grid;
+    [3,7,11].forEach(function(r){ [3,7,11].forEach(function(c){
+      ctx.beginPath(); ctx.arc(px(c), px(r), 3.4, 0, 6.2832); ctx.fill();
+    }); });
+  }
+
+  function stone(cx, cy, colour, scale, squash, alpha){
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, R*scale, R*scale*squash, 0, 0, 6.2832);
+    ctx.fillStyle = colour === 1 ? C.b : C.w;
+    ctx.fill();
+    if (colour === 2){ ctx.lineWidth = 1.2; ctx.strokeStyle = C.wl; ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function frame(now){
+    var t = REDUCED ? CYCLE - FADE - 200 : (now % CYCLE);
+    ctx.clearRect(0, 0, 720, 720);
+    ctx.fillStyle = C.surface; ctx.fillRect(0, 0, 720, 720);
+    grid();
+
+    var fadeOut = 1;
+    var fadeAt = CYCLE - FADE;
+    if (t > fadeAt) fadeOut = 1 - easeOutQuad(clamp01((t - fadeAt)/FADE));
+
+    for (var i = 0; i < MOVES.length; i++){
+      var m = MOVES[i], start = T0 + i*GAP;
+      if (t < start) continue;
+      var d = clamp01((t - start)/DROP);
+      var sc = easeOutBack(d, 1.9);
+      var sq = 1 - 0.30*Math.sin(Math.PI*Math.min(d, 1));
+      stone(px(m[1]), px(m[0]), m[2], Math.max(sc, 0), sq, fadeOut);
+      var rd = (t - start - DROP)/RING;
+      if (rd >= 0 && rd <= 1){
+        var e = easeOutCubic(rd);
+        ctx.save(); ctx.globalAlpha = (1 - e)*0.45*fadeOut;
+        ctx.strokeStyle = m[2] === 1 ? C.warm : C.acc; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px(m[1]), px(m[0]), R + e*R*2.4, 0, 6.2832); ctx.stroke();
+        ctx.restore();
+      }
+      if (!REDUCED && Math.abs(t - start - DROP) < 20 && !m.fired){
+        m.fired = t; burst(px(m[1]), px(m[0]), m[2] === 1 ? C.warm : C.acc);
+      }
+      if (t < start) m.fired = 0;
+    }
+    if (t < T0) MOVES.forEach(function(m){ m.fired = 0; });
+
+    for (var k = 0; k < WIN.length; k++){
+      var ws = WIN_START + k*WIN_STEP;
+      if (t < ws) continue;
+      var wd = clamp01((t - ws)/WIN_DUR);
+      var pulse = Math.sin(wd*Math.PI);
+      ctx.save();
+      ctx.globalAlpha = pulse*0.85*fadeOut;
+      ctx.strokeStyle = C.acc; ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(px(WIN[k][1]), px(WIN[k][0]), R + 5 + easeOutCubic(wd)*7, 0, 6.2832);
+      ctx.stroke(); ctx.restore();
+    }
+
+    var dt = 1/60;
+    for (var s = sparks.length - 1; s >= 0; s--){
+      var p = sparks[s]; p.life += dt;
+      if (p.life > p.ttl){ sparks.splice(s, 1); continue; }
+      p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 420*dt; p.vx *= .985;
+      ctx.save(); ctx.globalAlpha = (1 - p.life/p.ttl)*0.8*fadeOut;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.1, 0, 6.2832); ctx.fill(); ctx.restore();
+    }
+    if (!REDUCED) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ================= INPUT PLANES ================= */
+(function(){
+  var chips = $("plane-chips"); if (!chips) return;
+  // A small worked position: the side to move is black.
+  var ME = [[7,7],[6,8],[8,8]], OPP = [[7,8],[6,7],[8,6]];
+  var OPP_LAST = [8,6], ME_PREV = [8,8];
+  var PLANES = [
+    { n:"0", en:"Your stones. Every point where the player about to move already has a stone.",
+      ko:"내 돌. 지금 둘 차례인 쪽의 돌이 놓인 모든 지점.",
+      code:"out[0] = (cells == me)", cells:ME, tone:"me" },
+    { n:"1", en:"The opponent's stones. Same board, the other colour.",
+      ko:"상대 돌. 같은 판의 반대 색.",
+      code:"out[1] = (cells == opponent)", cells:OPP, tone:"opp" },
+    { n:"2", en:"One dot: where the opponent just played. Gomoku is mostly a reply to the last move.",
+      ko:"점 하나 — 상대가 방금 둔 자리. 오목은 대부분 직전 수에 대한 응수입니다.",
+      code:"out[2, r, c] = 1.0   # moves[-1]", cells:[OPP_LAST], tone:"opp" },
+    { n:"3", en:"One dot: your own previous move, so the network can see a plan being continued.",
+      ko:"점 하나 — 내가 직전에 둔 자리. 이어가던 계획을 신경망이 볼 수 있게 합니다.",
+      code:"out[3, r, c] = 1.0   # moves[-2]", cells:[ME_PREV], tone:"me" },
+    { n:"4", en:"All ones, or all zeros: is the player to move black? Black moves first, so the colour matters.",
+      ko:"전부 1이거나 전부 0 — 지금 둘 차례가 흑인가? 흑이 먼저 두므로 색이 의미를 가집니다.",
+      code:"if me == BLACK: out[4] = 1.0", cells:"ALL", tone:"flat" }
+  ];
+  var svg = $("plane-svg"), active = 0;
+  PLANES.forEach(function(p, i){
+    var b = document.createElement("button");
+    b.className = "chip"; b.textContent = "plane " + p.n;
+    b.setAttribute("aria-pressed", String(i === 0));
+    b.addEventListener("click", function(){ show(i); });
+    chips.appendChild(b);
+  });
+  function show(i){
+    active = i; var p = PLANES[i];
+    Array.prototype.forEach.call(chips.children, function(c, j){
+      c.setAttribute("aria-pressed", String(j === i));
+    });
+    $("plane-en").textContent = p.en;
+    $("plane-ko").textContent = p.ko;
+    $("plane-code").textContent = p.code;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var cell = 10;
+    for (var r = 0; r < 15; r++) for (var c = 0; c < 15; c++){
+      var on = false;
+      if (p.cells === "ALL") on = true;
+      else on = p.cells.some(function(q){ return q[0] === r && q[1] === c; });
+      var fill = on ? (p.tone === "opp" ? "var(--warm)" : "var(--accent)") : "var(--surface-2)";
+      var rect = el("rect", { x:c*cell, y:r*cell, width:cell-1, height:cell-1, fill:fill,
+                              opacity: on ? (p.tone === "flat" ? .45 : .92) : 1 });
+      rect.style.transition = "fill .45s var(--ease-in-out-cubic), opacity .45s var(--ease-in-out-cubic)";
+      svg.appendChild(rect);
+    }
+  }
+  show(0);
+})();
+
+/* ================= MCTS WIDGET ================= */
+(function(){
+  var svg = $("mcts-svg"); if (!svg) return;
+  var NODES = {
+    root:{ x:390, y:44, label:"root", parent:null },
+    A:{ x:150, y:154, label:"G7", parent:"root" },
+    B:{ x:390, y:154, label:"H8", parent:"root" },
+    C:{ x:630, y:154, label:"I9", parent:"root" },
+    F:{ x:80,  y:268, label:"F7", parent:"A" },
+    D:{ x:300, y:268, label:"H9", parent:"B" },
+    E:{ x:480, y:268, label:"G8", parent:"B" }
+  };
+  var SIMS = [
+    { path:["B"], v: 0.12 }, { path:["A"], v:-0.30 }, { path:["C"], v: 0.05 },
+    { path:["B","E"], v: 0.34 }, { path:["B","D"], v:-0.20 }, { path:["A","F"], v: 0.08 }
+  ];
+  var R = 25, gs = {}, edges = {}, state = {}, sim = 0, timer = null, auto = false;
+
+  Object.keys(NODES).forEach(function(k){
+    var n = NODES[k];
+    if (n.parent){
+      var p = NODES[n.parent];
+      var line = el("line", { x1:p.x, y1:p.y + R, x2:n.x, y2:n.y - R, class:"medge hidden" });
+      svg.appendChild(line); edges[k] = line;
+    }
+  });
+  var flow = el("path", { class:"mflow", d:"" }); svg.appendChild(flow);
+  var chip = el("g", { class:"netchip", opacity:"0" });
+  chip.appendChild(el("rect", { x:0, y:0, width:150, height:38, rx:2, fill:"var(--warm-wash)",
+                                stroke:"var(--warm)", "stroke-width":"1.2" }));
+  var chipT1 = el("text", { x:75, y:16, "text-anchor":"middle", "font-family":"var(--mono)",
+                            "font-size":"10.5", fill:"var(--warm)" }, "network says");
+  var chipT2 = el("text", { x:75, y:30, "text-anchor":"middle", "font-family":"var(--mono)",
+                            "font-size":"11", fill:"var(--ink)" }, "");
+  chip.appendChild(chipT1); chip.appendChild(chipT2);
+  chip.style.transition = "opacity .4s var(--ease-out-cubic)";
+  svg.appendChild(chip);
+
+  Object.keys(NODES).forEach(function(k){
+    var n = NODES[k];
+    var g = el("g", { class:"mnode hidden" });
+    g.appendChild(el("circle", { cx:n.x, cy:n.y, r:R }));
+    g.appendChild(el("text", { x:n.x, y:n.y + 4, class:"nlab" }, "0"));
+    g.appendChild(el("text", { x:n.x, y:n.y + R + 16 }, ""));
+    var off = n.parent ? (n.x < NODES.root.x ? -36 : 36) : 0;
+    g.appendChild(el("text", { x:n.x + off, y:n.y - R - 7, "font-size":"10.5",
+                               fill:"var(--muted)" }, n.label));
+    svg.appendChild(g); gs[k] = g;
+  });
+  svg.appendChild(el("text", { x:390, y:322, "text-anchor":"middle", "font-family":"var(--mono)",
+                               "font-size":"10.5", fill:"var(--muted)" },
+                     "circle = visit count N   ·   below = Q, the average result so far"));
+
+  function setPhase(p){
+    Array.prototype.forEach.call($("phaselist").children, function(n){
+      n.classList.toggle("on", n.getAttribute("data-p") === p);
+    });
+  }
+  function paint(){
+    Object.keys(NODES).forEach(function(k){
+      var s = state[k];
+      var g = gs[k];
+      g.classList.toggle("hidden", !s || !s.open);
+      if (edges[k]) edges[k].classList.toggle("hidden", !s || !s.open);
+      if (!s || !s.open) return;
+      g.childNodes[1].textContent = String(s.N);
+      g.childNodes[2].textContent = s.N ? (s.W/s.N >= 0 ? "+" : "") + (s.W/s.N).toFixed(2) : "";
+    });
+    $("sim-count").textContent = "sim " + sim + " / " + SIMS.length;
+  }
+  function reset(){
+    stop();
+    sim = 0; state = {};
+    Object.keys(NODES).forEach(function(k){ state[k] = { open:false, N:0, W:0 }; });
+    state.root.open = true;
+    Object.keys(NODES).forEach(function(k){ gs[k].classList.remove("on","eval"); });
+    flow.classList.remove("run","back"); chip.setAttribute("opacity","0");
+    setPhase(null); paint();
+  }
+  function pathPoints(path){
+    var pts = [[NODES.root.x, NODES.root.y]];
+    path.forEach(function(k){ pts.push([NODES[k].x, NODES[k].y]); });
+    return pts;
+  }
+  function drawFlow(pts, back){
+    var d = pts.map(function(p, i){ return (i ? "L" : "M") + p[0] + " " + p[1]; }).join(" ");
+    flow.classList.remove("run","back");
+    flow.setAttribute("d", d);
+    var len = flow.getTotalLength();
+    flow.style.setProperty("--len", len);
+    if (back) flow.classList.add("back");
+    // force reflow so the transition restarts
+    void flow.getBoundingClientRect();
+    flow.classList.add("run");
+  }
+  var chain = [];
+  function seq(fn, ms){ chain.push([fn, ms]); }
+  function runChain(done){
+    var i = 0;
+    (function next(){
+      if (i >= chain.length){ chain = []; if (done) done(); return; }
+      var step = chain[i++];
+      step[0]();
+      timer = setTimeout(next, REDUCED ? 1 : step[1]);
+    })();
+  }
+  function stop(){ if (timer) clearTimeout(timer); timer = null; chain = []; auto = false;
+    $("mcts-auto").classList.remove("on"); }
+
+  function runSim(after){
+    if (sim >= SIMS.length){ if (after) after(); return; }
+    var s = SIMS[sim], leaf = s.path[s.path.length - 1];
+    var pts = pathPoints(s.path);
+    seq(function(){
+      setPhase("select");
+      s.path.forEach(function(k){ if (state[k].open) gs[k].classList.add("on"); });
+      gs.root.classList.add("on");
+      drawFlow(pts, false);
+    }, 900);
+    seq(function(){
+      setPhase("expand");
+      state[leaf].open = true; paint();
+      gs[leaf].classList.add("on");
+    }, 700);
+    seq(function(){
+      setPhase("evaluate");
+      gs[leaf].classList.add("eval");
+      chipT2.textContent = "v = " + (s.v >= 0 ? "+" : "") + s.v.toFixed(2);
+      chip.setAttribute("transform", "translate(" + (NODES[leaf].x + 34) + "," + (NODES[leaf].y - 20) + ")");
+      chip.setAttribute("opacity", "1");
+    }, 900);
+    seq(function(){
+      setPhase("backup");
+      chip.setAttribute("opacity", "0");
+      drawFlow(pts.slice().reverse(), true);
+      var sign = -1;
+      for (var i = s.path.length - 1; i >= 0; i--){
+        var k = s.path[i];
+        state[k].N += 1; state[k].W += sign*s.v; sign = -sign;
+      }
+      state.root.N += 1;
+      paint();
+    }, 1000);
+    seq(function(){
+      Object.keys(NODES).forEach(function(k){ gs[k].classList.remove("on","eval"); });
+      flow.classList.remove("run","back");
+      setPhase(null); sim++; paint();
+    }, 260);
+    runChain(after);
+  }
+
+  $("mcts-step").addEventListener("click", function(){ if (timer) return; runSim(); });
+  $("mcts-reset").addEventListener("click", reset);
+  $("mcts-auto").addEventListener("click", function(){
+    if (auto){ stop(); return; }
+    if (sim >= SIMS.length) reset();
+    auto = true; this.classList.add("on");
+    (function loop(){
+      if (!auto) return;
+      if (sim >= SIMS.length){ stop(); return; }
+      runSim(loop);
+    })();
+  });
+  reset();
+})();
+
+/* ================= POLICY vs VISITS HEATMAPS ================= */
+(function(){
+  var pSvg = $("heat-p"), vSvg = $("heat-v"); if (!pSvg) return;
+  function gauss(peaks, floor){
+    var a = [], sum = 0;
+    for (var r = 0; r < 15; r++) for (var c = 0; c < 15; c++){
+      var val = floor;
+      peaks.forEach(function(pk){
+        var d2 = (r - pk[0])*(r - pk[0]) + (c - pk[1])*(c - pk[1]);
+        val += pk[2]*Math.exp(-d2/(2*pk[3]*pk[3]));
+      });
+      a.push(val); sum += val;
+    }
+    return a.map(function(v){ return v/sum; });
+  }
+  var POLICY = gauss([[7,7,1.0,2.4],[6,9,.75,2.0],[9,6,.45,2.2],[5,5,.3,2.6]], .02);
+  var VISITS = gauss([[7,8,1.0,.75],[6,9,.55,.7],[8,7,.22,.6]], .0012);
+  function grid(svg, data){
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var max = Math.max.apply(null, data), cell = 10, out = [];
+    for (var r = 0; r < 15; r++) for (var c = 0; c < 15; c++){
+      var v = data[r*15 + c]/max;
+      svg.appendChild(el("rect", { x:c*cell, y:r*cell, width:cell-1, height:cell-1,
+                                   fill:"var(--surface-2)" }));
+      var hot = el("rect", { x:c*cell, y:r*cell, width:cell-1, height:cell-1,
+                             fill:"var(--accent)", opacity:Math.pow(v, .62).toFixed(3), class:"hm" });
+      svg.appendChild(hot); out.push(hot);
+    }
+    return out;
+  }
+  grid(vSvg, VISITS);
+  var pCells = grid(pSvg, POLICY);
+  function apply(cells, data){
+    var max = Math.max.apply(null, data);
+    cells.forEach(function(n, i){ n.setAttribute("opacity", Math.pow(data[i]/max, .62).toFixed(3)); });
+  }
+  var fade = false, fadeTimer = null, which = 0;
+  var lab = pSvg.parentNode.querySelector("h4");
+  var labEn = lab.querySelector(".en"), labKo = lab.querySelector(".ko");
+  function labels(en, ko){ labEn.textContent = en; labKo.textContent = ko; }
+  function setMode(on){
+    fade = on;
+    $("heat-both").classList.toggle("on", !on);
+    $("heat-both").setAttribute("aria-pressed", String(!on));
+    $("heat-fade").classList.toggle("on", on);
+    $("heat-fade").setAttribute("aria-pressed", String(on));
+    vSvg.parentNode.style.display = on ? "none" : "";
+    if (fadeTimer) clearInterval(fadeTimer);
+    if (on){
+      which = 0;
+      var tick = function(){
+        which = 1 - which;
+        apply(pCells, which ? VISITS : POLICY);
+        labels(which ? "MCTS visits π — after 160 sims" : "Network policy P — one forward pass",
+               which ? "MCTS 방문 분포 π — 160회 탐색 후" : "신경망 정책 P — 순전파 한 번");
+      };
+      tick(); fadeTimer = setInterval(tick, 2200);
+    } else {
+      apply(pCells, POLICY);
+      labels("Network policy P — one forward pass", "신경망 정책 P — 순전파 한 번");
+    }
+  }
+  $("heat-both").addEventListener("click", function(){ setMode(false); });
+  $("heat-fade").addEventListener("click", function(){ setMode(true); });
+})();
+
+/* ================= EIGHT SYMMETRIES ================= */
+(function(){
+  var svg = $("sym-svg"); if (!svg) return;
+  var cell = 15, off = 11;
+  function xy(i){ return off + i*cell; }
+  var g = el("g", { id:"sym-flip" });
+  var rot = el("g", { id:"sym-rot" });
+  var lines = el("g", {});
+  for (var i = 0; i < 9; i++){
+    lines.appendChild(el("line", { x1:xy(0), y1:xy(i), x2:xy(8), y2:xy(i),
+                                   stroke:"var(--grid)", "stroke-width":"1" }));
+    lines.appendChild(el("line", { x1:xy(i), y1:xy(0), x2:xy(i), y2:xy(8),
+                                   stroke:"var(--grid)", "stroke-width":"1" }));
+  }
+  rot.appendChild(lines);
+  [[3,3,"b"],[4,4,"b"],[3,4,"w"],[5,3,"w"]].forEach(function(s){
+    rot.appendChild(el("circle", { cx:xy(s[1]), cy:xy(s[0]), r:5.4,
+      fill: s[2] === "b" ? "var(--stone-b)" : "var(--stone-w)",
+      stroke: s[2] === "b" ? "none" : "var(--stone-w-line)", "stroke-width":"1" }));
+  });
+  rot.appendChild(el("circle", { cx:xy(5), cy:xy(2), r:6.4, fill:"none",
+                                 stroke:"var(--accent)", "stroke-width":"2" }));
+  rot.appendChild(el("text", { x:xy(5) + 10, y:xy(2) + 3, "font-family":"var(--mono)",
+                               "font-size":"7.5", fill:"var(--accent)" }, "best"));
+  g.appendChild(rot); svg.appendChild(g);
+
+  var k = 0, turns = 0, autoOn = true, iv = null;
+  function render(){
+    var kk = ((k % 8) + 8) % 8;
+    rot.style.transform = "rotate(" + (turns*90) + "deg)";
+    g.style.transform = kk >= 4 ? "scaleX(-1)" : "scaleX(1)";
+    var flip = kk >= 4 ? " · mirrored" : "";
+    $("sym-label").textContent = "k = " + kk + "   (rot " + (kk % 4)*90 + "°" + flip + ")";
+  }
+  function step(d){ k += d; turns += d; render(); }
+  function startAuto(){ if (iv) clearInterval(iv); if (!REDUCED) iv = setInterval(function(){ step(1); }, 1700); }
+  $("sym-next").addEventListener("click", function(){ step(1); });
+  $("sym-prev").addEventListener("click", function(){ step(-1); });
+  $("sym-auto").addEventListener("click", function(){
+    autoOn = !autoOn; this.classList.toggle("on", autoOn);
+    this.setAttribute("aria-pressed", String(autoOn));
+    if (autoOn) startAuto(); else if (iv){ clearInterval(iv); iv = null; }
+  });
+  render(); startAuto();
+})();
+
+/* ================= ARENA GATE ================= */
+(function(){
+  var range = $("scorerange"); if (!range) return;
+  var TXT = {
+    yes_en: "Promoted. best.npz is replaced, and the next iteration of self-play is generated by this network.",
+    yes_ko: "승격. best.npz가 교체되고, 다음 반복의 자기대국은 이 신경망이 만듭니다.",
+    no_en:  "Rejected. The candidate keeps training, but the old best keeps generating the data — a bad step cannot poison the replay buffer.",
+    no_ko:  "기각. 후보는 계속 학습하지만 데이터는 여전히 기존 최선 모델이 만듭니다. 나쁜 스텝이 리플레이 버퍼를 오염시킬 수 없습니다."
+  };
+  function update(){
+    var s = range.value/100;
+    var ok = s >= 0.55;
+    $("scoreval").textContent = s.toFixed(2);
+    var fill = $("gatefill");
+    fill.style.width = (s*100) + "%";
+    fill.classList.toggle("no", !ok);
+    var v = $("verdict");
+    v.classList.toggle("no", !ok);
+    v.innerHTML = ok
+      ? '<span class="en">PROMOTE ✓</span><span class="ko">승격 ✓</span>'
+      : '<span class="en">KEEP OLD BEST</span><span class="ko">기존 최선 유지</span>';
+    $("gatetext").innerHTML = ok
+      ? '<span class="en">' + TXT.yes_en + '</span><span class="ko">' + TXT.yes_ko + '</span>'
+      : '<span class="en">' + TXT.no_en  + '</span><span class="ko">' + TXT.no_ko  + '</span>';
+  }
+  range.addEventListener("input", update);
+  update();
+})();
+
+/* ================= DOES THE LOSS VALUE MATTER? ================= */
+(function(){
+  var host = $("bp-modes"); if (!host) return;
+  var PL = 3.18, VL = 0.23, BASE = PL + 1.0 * VL;   // a plausible mid-run step
+  var POINTS = [
+    { name:"H8", pi:0.62, p:0.41 },
+    { name:"G9", pi:0.24, p:0.19 },
+    { name:"D4", pi:0.00, p:0.08 }
+  ];
+  var MODES = [
+    { key:"real", label:"L",
+      expr:'L = policy_loss + 1.0 · value_loss',
+      value:BASE, factor:1,
+      en:"The real loss. Every gradient below flows from a seed of exactly 1.0.",
+      ko:"실제 손실입니다. 아래 모든 기울기가 정확히 1.0인 씨앗에서 흘러나옵니다.", warn:false },
+    { key:"plus", label:"L + 1000",
+      expr:'L = policy_loss + 1.0 · value_loss <span class="hl2">+ 1000</span>',
+      value:BASE + 1000, factor:1,
+      en:"The loss value jumped by 1000 and every gradient is byte-for-byte identical. A constant has derivative zero, so it never reaches the graph. This is the answer: backward never reads the number.",
+      ko:"loss 값이 1000이나 뛰었는데 기울기는 한 치도 다르지 않습니다. 상수의 미분은 0이라 그래프에 닿지 않습니다. 이것이 답입니다 — 역전파는 그 숫자를 읽지 않습니다.", warn:false },
+    { key:"times", label:"2 × L",
+      expr:'L = <span class="hl2">2 ·</span> (policy_loss + 1.0 · value_loss)',
+      value:BASE * 2, factor:2,
+      en:"Now the gradients doubled — but the seed is still 1.0. What changed is the function, not the value: the multiply node contributes a local derivative of 2 on the way back.",
+      ko:"이번엔 기울기가 두 배가 됐습니다. 그래도 씨앗은 여전히 1.0입니다. 바뀐 것은 값이 아니라 함수입니다. 곱하기 노드가 돌아오는 길에 국소 미분 2를 내놓은 것입니다.", warn:true }
+  ];
+  var current = 0, anim = null;
+
+  MODES.forEach(function(m, i){
+    var b = document.createElement("button");
+    b.className = "btn" + (i === 0 ? " on" : "");
+    b.textContent = m.label;
+    b.setAttribute("aria-pressed", String(i === 0));
+    b.addEventListener("click", function(){ select(i); });
+    host.appendChild(b);
+  });
+
+  var rows = $("bp-rows");
+  POINTS.forEach(function(pt){
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td class="mono">' + pt.name + '</td><td class="mono">' +
+      pt.pi.toFixed(2) + '</td><td class="mono">' + pt.p.toFixed(2) +
+      '</td><td class="mono grad"></td>';
+    rows.appendChild(tr);
+  });
+  var gradCells = rows.querySelectorAll("td.grad");
+
+  function tween(from, to, ms, step){
+    var t0 = performance.now();
+    if (REDUCED){ step(to); return; }
+    (function frame(now){
+      var t = clamp01((now - t0)/ms);
+      step(from + (to - from) * easeOutCubic(t));
+      if (t < 1) requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  function select(i){
+    var prev = MODES[current], m = MODES[i];
+    current = i;
+    Array.prototype.forEach.call(host.children, function(b, j){
+      b.classList.toggle("on", j === i);
+      b.setAttribute("aria-pressed", String(j === i));
+    });
+    $("bp-expr").innerHTML = m.expr;
+    if (anim) cancelAnimationFrame(anim);
+    tween(prev.value, m.value, 600, function(v){ $("bp-loss").textContent = v.toFixed(2); });
+    tween(prev.factor, m.factor, 600, function(f){
+      $("bp-c").textContent = "× " + (Math.abs(f - Math.round(f)) < .02 ? Math.round(f) : f.toFixed(2));
+      POINTS.forEach(function(pt, k){
+        var g = f * (pt.p - pt.pi);
+        gradCells[k].textContent = (g >= 0 ? "+" : "") + g.toFixed(3);
+      });
+    });
+    $("bp-cbox").classList.toggle("cold", m.factor !== 1);
+    var v = $("bp-verdict");
+    v.classList.toggle("warn", !!m.warn);
+    v.innerHTML = '<span class="en">' + m.en + '</span><span class="ko">' + m.ko + '</span>';
+  }
+  select(0);
+})();
+})();
+</script>
+</body>
+</html>

@@ -7,3 +7,4 @@ assets_raw/
 *.mlpackage/
 *.onnx
 .DS_Store
+runs.tar
