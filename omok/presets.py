@@ -47,6 +47,19 @@ _preset(
 # The default: 6x96, 160 simulations.
 _preset("base")
 
+# The base network, but a much cheaper search around it: tuned to reach the
+# casual-human milestone in roughly half an hour on a modern GPU.  Each
+# iteration carries ~4x less searched experience than `base`, so iteration 60
+# here is weaker than iteration 60 there -- the trade is deliberate.
+_preset(
+    "fast",
+    mcts__simulations=64,
+    selfplay__games_per_iter=32, selfplay__parallel_games=32,
+    train__steps_per_iter=200,
+    arena__games=12, arena__simulations=64, arena__parallel_games=12,
+    iterations=60,
+)
+
 # For a CUDA box you are happy to leave running.
 _preset(
     "strong",

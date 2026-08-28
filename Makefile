@@ -42,7 +42,7 @@ OUTLOG := $(RUN)/logs/train.out
 help: ## Show this help
 	@echo "Omok trainer"
 	@echo "  python : $(PY)"
-	@echo "  preset : $(PRESET)   (tiny | small | base | strong)"
+	@echo "  preset : $(PRESET)   (tiny | small | fast | base | strong)"
 	@echo "  conda  : $(CONDA_ENV)"
 	@echo "  run dir: $(RUN)"
 	@echo ""
@@ -50,7 +50,7 @@ help: ## Show this help
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Variables (append VAR=value to any target):"
-	@echo "  PRESET=$(PRESET)     tiny | small | base | strong"
+	@echo "  PRESET=$(PRESET)     tiny | small | fast | base | strong"
 	@echo "  RUN=$(RUN)   where this run's data/checkpoints live"
 	@echo "  ITERS=          how many MORE iterations to run, counted from the"
 	@echo "                  iteration saved in state.json; empty = preset default."
