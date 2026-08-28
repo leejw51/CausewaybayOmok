@@ -37,12 +37,12 @@ OUTLOG := $(RUN)/logs/train.out
 .PHONY: help env install install-dev install-export install-gui test smoke info bench \
         backends train resume train-bg stop tail status selfplay fit arena export \
         export-onnx export-npz play gui assets watch clean-run clean distclean \
-        train-to train-basic train-casual train-strong train-full
+        train-to train-fast train-average train-basic train-casual train-strong train-full
 
 help: ## Show this help
 	@echo "Omok trainer"
 	@echo "  python : $(PY)"
-	@echo "  preset : $(PRESET)   (tiny | small | fast | base | strong)"
+	@echo "  preset : $(PRESET)   (tiny | blitz | small | fast | base | strong)"
 	@echo "  conda  : $(CONDA_ENV)"
 	@echo "  run dir: $(RUN)"
 	@echo ""
@@ -50,7 +50,7 @@ help: ## Show this help
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Variables (append VAR=value to any target):"
-	@echo "  PRESET=$(PRESET)     tiny | small | fast | base | strong"
+	@echo "  PRESET=$(PRESET)     tiny | blitz | small | fast | base | strong"
 	@echo "  RUN=$(RUN)   where this run's data/checkpoints live"
 	@echo "  ITERS=          how many MORE iterations to run, counted from the"
 	@echo "                  iteration saved in state.json; empty = preset default."
@@ -62,6 +62,8 @@ help: ## Show this help
 	@echo "  CONDA_ENV=$(CONDA_ENV)   conda env that make install builds and make train uses"
 	@echo ""
 	@echo "Examples:"
+	@echo "  make train-fast                   # ~10 min: check the whole flow works"
+	@echo "  make train-average                # ~30 min: a real but quick run"
 	@echo "  make train-casual                 # train until it beats a casual human"
 	@echo "  make train-to TO=300              # train until iteration 300 (absolute)"
 	@echo "  make train ITERS=200              # 200 MORE iterations, then stop"
@@ -133,6 +135,15 @@ train-to: ## Train until iteration TO (absolute), e.g. make train-to TO=200
 	if [ $$rem -le 0 ]; then echo "already at iteration $$cur (>= $(TO)) -- nothing to do"; \
 	else echo "iteration $$cur -> $(TO) ($$rem to go)"; \
 	  $(OMOK) train $(COMMON) --iterations $$rem; fi
+
+# These two are sized by wall-clock budget rather than by strength, and use
+# the cheaper presets to get there.  Iteration counts come from measured
+# per-iteration times on an RTX 5070, not from the `make info` estimate.
+train-fast: ## ~10 minutes (blitz preset): end-to-end check that the whole flow works
+	@$(MAKE) --no-print-directory train-to TO=30 PRESET=blitz
+
+train-average: ## ~30 minutes (fast preset): a real but quick run
+	@$(MAKE) --no-print-directory train-to TO=45 PRESET=fast
 
 train-basic: ## Train to iteration 10 (~35m on M4 Max): plays legally, blocks threats
 	@$(MAKE) --no-print-directory train-to TO=10

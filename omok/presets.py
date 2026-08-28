@@ -60,6 +60,19 @@ _preset(
     iterations=60,
 )
 
+# A ten-minute run: a smaller net and a cheap search, sized so the whole
+# thing finishes over a coffee.  It plays legally and blocks the obvious
+# threats; it will not beat anyone who has thought about the game.
+_preset(
+    "blitz",
+    net__channels=64, net__blocks=4,
+    mcts__simulations=32,
+    selfplay__games_per_iter=24, selfplay__parallel_games=24,
+    train__batch_size=256, train__steps_per_iter=120,
+    arena__games=8, arena__simulations=32, arena__parallel_games=8,
+    iterations=30,
+)
+
 # For a CUDA box you are happy to leave running.
 _preset(
     "strong",
