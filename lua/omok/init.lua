@@ -138,6 +138,27 @@ function omok.root()
     return findUp(base, "rust/Cargo.toml") or findUp(base, "runs") or base
 end
 
+--- The `Contents` directory of the macOS app this game is running inside, or
+-- nil when it is not inside one.
+--
+-- `make app` fuses the game into a LÖVE bundle: the archive sits at
+-- `Contents/Resources/game.love`, the compiled core beside the runtime's own
+-- libraries as `Contents/Frameworks/OmokAI.framework` (the dylib, with the
+-- Metal kernels in its Resources), and the trained model under
+-- `Contents/Resources/model`.  A double-clicked app inherits no environment,
+-- so `OMOK_LIB` and `OMOK_MODEL` cannot reach it -- and the checkout it was
+-- built from is not there either.  So the bundle is asked first, and only
+-- when fused: `love love2d` in a checkout is not a bundle and must keep
+-- finding what `make ai` and `make train` produced.
+local function bundleContents()
+    if not (love and love.filesystem and love.filesystem.isFused
+            and love.filesystem.isFused()) then
+        return nil
+    end
+    local source = love.filesystem.getSource() or ""
+    return source:match("^(.*/Contents)/Resources/[^/]+$")
+end
+
 local LIB_NAMES = {
     "rust/target/release/libomok_ai.dylib",
     "rust/target/debug/libomok_ai.dylib",
@@ -148,6 +169,10 @@ local LIB_NAMES = {
 --- Where the compiled core is, or nil.
 function omok.findLibrary()
     if exists(os.getenv("OMOK_LIB")) then return os.getenv("OMOK_LIB") end
+    local contents = bundleContents()
+    if contents and exists(contents .. "/Frameworks/OmokAI.framework/OmokAI") then
+        return contents .. "/Frameworks/OmokAI.framework/OmokAI"
+    end
     local root = omok.root()
     for _, name in ipairs(LIB_NAMES) do
         local path = root .. "/" .. name
@@ -168,6 +193,10 @@ local MODEL_NAMES = {
 -- restarting the game is all it takes to face the new model.
 function omok.findModel()
     if exists(os.getenv("OMOK_MODEL")) then return os.getenv("OMOK_MODEL") end
+    local contents = bundleContents()
+    if contents and exists(contents .. "/Resources/model/best.npz") then
+        return contents .. "/Resources/model/best.npz"
+    end
     local root = omok.root()
     -- `ls -t` puts the most recently written checkpoint first, so a fresh run
     -- is picked up without touching anything here.

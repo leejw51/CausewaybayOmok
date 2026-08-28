@@ -15,3 +15,7 @@ assets_raw/
 *.onnx
 .DS_Store
 runs.tar
+# The macOS .app, its zip, and the LÖVE download `make app` stages.
+love2d/build/
+# `make package` output.
+dist/
