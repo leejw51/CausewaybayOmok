@@ -1129,7 +1129,227 @@ loss.backward(); clip_grad_norm_(net, 4.0); opt.step()  <i># AdamW</i></pre>
         </tbody>
       </table>
     </div>
+    <div class="stack-tight reveal">
+      <h3><span class="en">The <span class="mono">make</span> targets: one ladder, different rungs</span><span class="ko"><span class="mono">make</span> 타깃: 사다리는 하나, 딛는 칸이 다를 뿐</span></h3>
+      <p class="small"><span class="en">The <span class="mono">train-*</span> targets are not different kinds of training — they are <b>stopping points on the same run</b>. Each one trains up to an absolute iteration and then stops, so they compose: run <span class="mono">make train-casual</span> today and <span class="mono">make train</span> tomorrow, and tomorrow's run simply continues from iteration 60 to 200. Already past a milestone? The target says "nothing to do" and exits. Only the two quickest rungs switch to cheaper presets to fit their time budget.</span><span class="ko"><span class="mono">train-*</span> 타깃들은 서로 다른 종류의 학습이 아니라 <b>같은 런 위의 정거장</b>입니다. 각 타깃은 절대 반복 번호까지 학습하고 멈추므로 이어 쓸 수 있습니다. 오늘 <span class="mono">make train-casual</span>, 내일 <span class="mono">make train</span>을 돌리면 내일은 그냥 60에서 200으로 이어집니다. 이미 지난 정거장이면 "할 일 없음"만 찍고 끝납니다. 가장 빠른 두 칸만 시간 예산에 맞추려고 더 싼 프리셋으로 갈아탑니다.</span></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th><span class="en">command</span><span class="ko">명령</span></th>
+            <th>preset</th>
+            <th><span class="en">stops at</span><span class="ko">멈추는 지점</span></th>
+            <th><span class="en">time (RTX 5070)</span><span class="ko">시간 (RTX 5070)</span></th>
+            <th><span class="en">what you get</span><span class="ko">얻는 것</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="mono">make train-fast</td><td class="mono">blitz</td><td class="mono">iter 30</td><td class="mono">~10 min</td><td><span class="en">proof the whole flow works, end to end</span><span class="ko">전체 흐름이 도는지 끝까지 확인</span></td></tr>
+            <tr><td class="mono">make train-average</td><td class="mono">fast</td><td class="mono">iter 45</td><td class="mono">~30 min</td><td><span class="en">a real but quick run</span><span class="ko">진짜 학습, 다만 빠르게</span></td></tr>
+            <tr><td class="mono">make train-basic</td><td class="mono">base</td><td class="mono">iter 10</td><td class="mono">~10 min</td><td><span class="en">plays legally, blocks obvious threats</span><span class="ko">규칙대로 두고 뻔한 위협은 막는다</span></td></tr>
+            <tr><td class="mono">make train-casual</td><td class="mono">base</td><td class="mono">iter 60</td><td class="mono">~1 h</td><td><span class="en">a real game of omok — beats a casual human</span><span class="ko">제대로 된 오목 — 가벼운 상대는 이긴다</span></td></tr>
+            <tr class="hi"><td class="mono">make train</td><td class="mono">base</td><td class="mono">iter 200</td><td class="mono">~3.5 h</td><td><span class="en">beats casual players every game</span><span class="ko">가벼운 상대에게는 매판 이긴다</span></td></tr>
+            <tr><td class="mono">make train-strong</td><td class="mono">base</td><td class="mono">iter 500</td><td class="mono">~8.5 h</td><td><span class="en">much stronger than <span class="mono">make train</span></span><span class="ko"><span class="mono">make train</span>보다 훨씬 강하다</span></td></tr>
+            <tr><td class="mono">make train-full</td><td class="mono">base</td><td class="mono">iter 1000</td><td class="mono">~17 h</td><td><span class="en">the full run</span><span class="ko">완주</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><span class="en">Three escape hatches sit beside the ladder. <span class="mono">make train-to TO=300</span> stops at any absolute iteration you name. <span class="mono">make train ITERS=200</span> is <em>relative</em> — 200 more iterations from wherever the run is now, useful for "just keep going a while". <span class="mono">make train-bg</span> runs the same loop detached in the background (<span class="mono">make tail</span> to watch, <span class="mono">make stop</span> to end it safely). And when any rung finishes, <span class="mono">make gui COLOR=white SIMS=320</span> plays the freshly promoted <span class="mono">best.npz</span> — strength at play time is just the simulation count, on top of whatever the training bought.</span><span class="ko">사다리 옆에는 샛길이 셋 있습니다. <span class="mono">make train-to TO=300</span>은 지정한 절대 반복까지. <span class="mono">make train ITERS=200</span>은 <em>상대적</em>으로, 지금 위치에서 200번 더 — "일단 좀 더 돌려" 용도입니다. <span class="mono">make train-bg</span>는 같은 루프를 백그라운드로 돌립니다(<span class="mono">make tail</span>로 구경, <span class="mono">make stop</span>으로 안전하게 종료). 어느 칸에서든 끝나면 <span class="mono">make gui COLOR=white SIMS=320</span>으로 갓 승격된 <span class="mono">best.npz</span>와 둘 수 있습니다. 대국 시점의 강함은 학습이 사 둔 실력 위에 시뮬레이션 횟수를 얹은 것입니다.</span></p>
+    </div>
+
     <p class="note reveal"><span class="en"><b>Nothing is ever lost.</b> Finished games are flushed every 2 games, checkpoints every 100 steps, and every file is written to a temp name and atomically renamed — so a half-written file can never be read. <span class="mono">Ctrl-C</span> finishes the current unit of work, flushes, and exits; <span class="mono">make resume</span> picks up mid-phase. There is a test that <span class="mono">SIGKILL</span>s a live training process and asserts the run comes back.</span><span class="ko"><b>아무것도 잃지 않습니다.</b> 끝난 대국은 2판마다, 체크포인트는 100스텝마다 기록되고, 모든 파일은 임시 이름으로 쓴 뒤 원자적으로 이름을 바꿉니다. 그래서 쓰다 만 파일을 읽는 일은 생기지 않습니다. <span class="mono">Ctrl-C</span>는 진행 중인 작업 단위를 끝내고 저장한 뒤 종료하며, <span class="mono">make resume</span>가 단계 중간부터 이어받습니다. 학습 프로세스를 <span class="mono">SIGKILL</span>로 죽인 뒤 복구되는지 확인하는 테스트도 있습니다.</span></p>
+  </div>
+</section>
+
+<!-- ============ 10. THE RUN DIRECTORY ============ -->
+<section id="files">
+  <div class="wrap stack">
+    <div>
+      <div class="sechead"><span class="secnum">10</span><h2><span class="en">On disk: what a run leaves behind</span><span class="ko">디스크에는: 학습이 남기는 것들</span></h2></div>
+      <p class="sub en">Everything a run is lives in one directory — <span class="mono">runs/base</span> for the base preset, <span class="mono">runs/blitz</span> for blitz, one per run. Each file has exactly one writer and a few readers. Delete the directory (<span class="mono">make clear</span>) and the next <span class="mono">make train</span> starts from zero; copy it to another machine and <span class="mono">make resume</span> continues there.</p>
+      <p class="sub ko">학습의 전부는 디렉터리 하나에 담깁니다. base 프리셋은 <span class="mono">runs/base</span>, blitz는 <span class="mono">runs/blitz</span> — 런마다 하나씩입니다. 파일마다 쓰는 쪽은 정확히 하나, 읽는 쪽은 몇 곳입니다. 디렉터리를 지우면(<span class="mono">make clear</span>) 다음 <span class="mono">make train</span>은 백지에서 시작하고, 다른 컴퓨터로 통째로 복사하면 <span class="mono">make resume</span>이 거기서 이어집니다.</p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head">
+        <h3><span class="en">Inside one run directory</span><span class="ko">런 디렉터리 안</span></h3>
+        <span class="small mono">runs/base · iteration 61</span>
+      </div>
+<pre class="code en">runs/base/                    <i># one run = one directory (runs/blitz, runs/fast, …)</i>
+├─ config.json                <i># every knob, resolved once when the run is created</i>
+├─ state.json                 <i># the bookmark: iteration · global_step · phase</i>
+├─ train.pid                  <i># only while `make train-bg` runs — for `make stop`</i>
+├─ replay/
+│  └─ shard-00002950.npz      <i># 2 games per shard: moves + π (float16) + winners</i>
+├─ checkpoints/
+│  ├─ step-00018300.npz       <i># weights every 100 steps — only the last 5 kept</i>
+│  ├─ step-00018300.opt.pt    <i># AdamW moments, 2× the model — resume only</i>
+│  ├─ step-00018300.json      <i># backend + full config snapshot at that step</i>
+│  ├─ latest.json             <i># → the newest step (what resume picks up)</i>
+│  ├─ <u>best.npz</u>                <i># ★ the champion — the one file needed to play</i>
+│  └─ best.json               <i># its certificate: arena score · spec · iteration</i>
+├─ logs/
+│  ├─ run.jsonl               <i># one JSON line per event, append-only</i>
+│  └─ train.out               <i># console of `make train-bg` (`make tail`)</i>
+└─ export/
+   └─ OmokNet.mlpackage       <i># best.npz translated for the iPhone / Mac app</i></pre>
+<pre class="code ko">runs/base/                    <i># 런 하나 = 디렉터리 하나 (runs/blitz, runs/fast, …)</i>
+├─ config.json                <i># 모든 설정값 — 런이 만들어질 때 한 번 확정</i>
+├─ state.json                 <i># 책갈피: iteration · global_step · phase</i>
+├─ train.pid                  <i># `make train-bg` 동안만 존재 — `make stop`용</i>
+├─ replay/
+│  └─ shard-00002950.npz      <i># 샤드당 2판: 수순 + π(float16) + 승자</i>
+├─ checkpoints/
+│  ├─ step-00018300.npz       <i># 100스텝마다의 가중치 — 최근 5개만 보관</i>
+│  ├─ step-00018300.opt.pt    <i># AdamW 모멘트, 모델의 2배 크기 — 재개 전용</i>
+│  ├─ step-00018300.json      <i># 그 시점의 백엔드 + 설정 스냅숏</i>
+│  ├─ latest.json             <i># → 최신 스텝 (재개가 여기서 시작)</i>
+│  ├─ <u>best.npz</u>                <i># ★ 챔피언 — 대국에 필요한 유일한 파일</i>
+│  └─ best.json               <i># 증명서: 아레나 점수 · 구조 · 반복 번호</i>
+├─ logs/
+│  ├─ run.jsonl               <i># 사건마다 JSON 한 줄, 덧붙이기 전용</i>
+│  └─ train.out               <i># `make train-bg`의 콘솔 (`make tail`)</i>
+└─ export/
+   └─ OmokNet.mlpackage       <i># best.npz를 iPhone / Mac 앱용으로 번역한 것</i></pre>
+    </div>
+
+    <figure class="reveal">
+      <div class="svgscroll">
+      <svg viewBox="0 0 980 340" role="img" aria-label="One training iteration drawn as file reads and writes: self-play writes replay shards, training samples them and writes step checkpoints, the arena tests a candidate checkpoint and promotes winners to best.npz, which feeds the next self-play, the play targets, and the export.">
+        <text class="d-t-s" x="16" y="20">one iteration, told as file reads and writes</text>
+        <path class="d-line d-dash" d="M16 28 L964 28" opacity=".35"/>
+
+        <rect class="d-box" x="16" y="44" width="132" height="58" rx="2"/>
+        <text class="d-t" x="82" y="68" text-anchor="middle">1 · self-play</text>
+        <text class="d-t-s" x="82" y="88" text-anchor="middle">plays best.npz</text>
+
+        <line class="d-line" x1="148" y1="73" x2="172" y2="73" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="160" y="63" text-anchor="middle">writes</text>
+
+        <rect class="d-box-a" x="178" y="44" width="180" height="58" rx="2"/>
+        <text class="d-t" x="268" y="68" text-anchor="middle">replay/shard-*.npz</text>
+        <text class="d-t-s" x="268" y="88" text-anchor="middle">moves · π · winners</text>
+
+        <line class="d-line" x1="358" y1="73" x2="382" y2="73" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="370" y="63" text-anchor="middle">samples</text>
+
+        <rect class="d-box" x="388" y="44" width="118" height="58" rx="2"/>
+        <text class="d-t" x="447" y="68" text-anchor="middle">2 · train</text>
+        <text class="d-t-s" x="447" y="88" text-anchor="middle">batch 512</text>
+
+        <line class="d-line" x1="506" y1="73" x2="530" y2="73" marker-end="url(#ar)"/>
+        <text class="d-t-s" x="518" y="63" text-anchor="middle">writes</text>
+
+        <rect class="d-box-a" x="536" y="44" width="200" height="58" rx="2"/>
+        <text class="d-t" x="636" y="68" text-anchor="middle">checkpoints/step-*.npz</text>
+        <text class="d-t-s" x="636" y="88" text-anchor="middle">+ .opt.pt + .json · last 5</text>
+
+        <line class="d-line" x1="736" y1="73" x2="760" y2="73" marker-end="url(#ar)"/>
+        <rect class="d-box-w" x="766" y="44" width="112" height="58" rx="2"/>
+        <text class="d-t" x="822" y="68" text-anchor="middle">3 · arena</text>
+        <text class="d-t-s" x="822" y="88" text-anchor="middle">vs best.npz</text>
+
+        <path class="d-line-a" d="M822 102 L822 181 L576 181" marker-end="url(#ar-a)"/>
+        <text class="d-t-a" x="700" y="171" text-anchor="middle">score ≥ 0.55 — promote</text>
+
+        <rect class="d-box-a" x="400" y="152" width="170" height="58" rx="2"/>
+        <text class="d-t" x="485" y="176" text-anchor="middle">best.npz</text>
+        <text class="d-t-s" x="485" y="196" text-anchor="middle">the champion · best.json</text>
+
+        <path class="d-line-a" d="M400 181 L82 181 L82 108" marker-end="url(#ar-a)"/>
+        <text class="d-t-s" x="240" y="171" text-anchor="middle">plays the next iteration's games</text>
+
+        <path class="d-line" d="M450 210 L370 246" marker-end="url(#ar)"/>
+        <rect class="d-box" x="250" y="252" width="210" height="58" rx="2"/>
+        <text class="d-t" x="355" y="276" text-anchor="middle">make play · gui · tui</text>
+        <text class="d-t-s" x="355" y="296" text-anchor="middle">desktop · terminal · LÖVE</text>
+
+        <path class="d-line" d="M520 210 L640 246" marker-end="url(#ar)"/>
+        <rect class="d-box" x="560" y="252" width="220" height="58" rx="2"/>
+        <text class="d-t" x="670" y="276" text-anchor="middle">make export → export/</text>
+        <text class="d-t-s" x="670" y="296" text-anchor="middle">OmokNet.mlpackage → iPhone</text>
+
+        <rect class="d-box-w" x="16" y="252" width="200" height="58" rx="2"/>
+        <text class="d-t" x="116" y="276" text-anchor="middle">state.json · run.jsonl</text>
+        <text class="d-t-s" x="116" y="296" text-anchor="middle">written by every phase</text>
+        <text class="d-t-s" x="16" y="332">state.json is the bookmark `make resume` reads; run.jsonl is the history `make status` reads</text>
+      </svg>
+      </div>
+      <figcaption><span class="en">One iteration as reads and writes. This repository's <span class="mono">base</span> run, at iteration 61: 2,951 shards (17 MB) of self-play, 78 MB of checkpoints, 1,428 log lines — and one 5.06 MB champion.</span><span class="ko">한 번의 반복을 읽기와 쓰기로 그린 그림. 이 저장소의 <span class="mono">base</span> 런은 61번째 반복 시점에 자기대국 샤드 2,951개(17 MB), 체크포인트 78 MB, 로그 1,428줄 — 그리고 5.06 MB짜리 챔피언 하나를 갖고 있습니다.</span></figcaption>
+    </figure>
+
+    <div class="tablewrap reveal">
+      <table>
+        <thead><tr>
+          <th><span class="en">file</span><span class="ko">파일</span></th>
+          <th><span class="en">what it holds</span><span class="ko">담긴 것</span></th>
+          <th><span class="en">written by</span><span class="ko">쓰는 쪽</span></th>
+          <th><span class="en">read by</span><span class="ko">읽는 쪽</span></th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">config.json</td>
+            <td><span class="en">The run's full settings — the preset expanded into every knob, so the run stays reproducible even if preset definitions change later.</span><span class="ko">이 런의 전체 설정. 프리셋을 모든 세부 값으로 풀어 적은 것이라, 나중에 프리셋 정의가 바뀌어도 이 런은 그대로 재현됩니다.</span></td>
+            <td><span class="en">run creation, once</span><span class="ko">런 생성 시 한 번</span></td>
+            <td><span class="en">every later command</span><span class="ko">이후의 모든 명령</span></td>
+          </tr>
+          <tr>
+            <td class="mono">state.json</td>
+            <td><span class="en">A few numbers and a phase name — enough to continue from any kill, mid-phase.</span><span class="ko">숫자 몇 개와 단계 이름 하나. 어느 지점에서 죽어도 단계 중간부터 잇기에 충분한 책갈피입니다.</span></td>
+            <td><span class="en">every phase, before moving on</span><span class="ko">매 단계, 넘어가기 전에</span></td>
+            <td class="mono">make resume · train-to · status</td>
+          </tr>
+          <tr>
+            <td class="mono">replay/shard-*.npz</td>
+            <td><span class="en">Self-play games: the move list, one 225-number visit distribution π per ply, the winner, and a per-ply trainable mask. ~20× smaller than storing input tensors.</span><span class="ko">자기대국 기록. 수순, 수마다의 방문 분포 π(225개), 승자, 수별 학습 대상 표시. 입력 텐서를 저장하는 것보다 약 20배 작습니다.</span></td>
+            <td><span class="en">self-play, flushed every 2 games</span><span class="ko">자기대국, 2판마다 저장</span></td>
+            <td><span class="en">training — 512 random positions per step, from the newest shards</span><span class="ko">학습 — 최신 샤드에서 스텝마다 512개 국면을 무작위 추출</span></td>
+          </tr>
+          <tr>
+            <td class="mono">checkpoints/step-*.npz</td>
+            <td><span class="en">The weights at that step, plain numpy arrays under PyTorch <span class="mono">state_dict</span> names — torch, MLX and Rust all read the same file. Only the last 5 are kept.</span><span class="ko">그 스텝의 가중치. PyTorch <span class="mono">state_dict</span> 이름의 numpy 배열이라 torch·MLX·Rust가 같은 파일을 읽습니다. 최근 5개만 남깁니다.</span></td>
+            <td><span class="en">training, every 100 steps</span><span class="ko">학습, 100스텝마다</span></td>
+            <td><span class="en">arena (as the candidate) · resume</span><span class="ko">아레나(후보로) · 재개</span></td>
+          </tr>
+          <tr>
+            <td class="mono">step-*.opt.pt</td>
+            <td><span class="en">AdamW's two moment tensors per weight — twice the model's size. Lets resume continue as if never interrupted; never needed to play.</span><span class="ko">가중치마다 AdamW 모멘트 두 개 — 모델의 두 배 크기. 중단이 없었던 것처럼 학습을 잇게 해 주며, 대국에는 전혀 필요 없습니다.</span></td>
+            <td><span class="en">training</span><span class="ko">학습</span></td>
+            <td><span class="en">resume only</span><span class="ko">재개 전용</span></td>
+          </tr>
+          <tr>
+            <td class="mono">step-*.json · latest.json</td>
+            <td><span class="en">Sidecar metadata — backend, size, a full config snapshot — and a pointer to the newest step.</span><span class="ko">체크포인트의 신상정보(백엔드, 크기, 설정 스냅숏)와 최신 스텝을 가리키는 포인터.</span></td>
+            <td><span class="en">training</span><span class="ko">학습</span></td>
+            <td><span class="en">resume · anyone inspecting a checkpoint</span><span class="ko">재개 · 체크포인트를 들여다보는 사람</span></td>
+          </tr>
+          <tr class="hi">
+            <td class="mono">best.npz · best.json</td>
+            <td><span class="en">The reigning champion and its certificate — arena score, network spec, iteration. The single file every player loads.</span><span class="ko">현 챔피언과 그 증명서 — 아레나 점수, 신경망 구조, 반복 번호. 대국하는 모든 것이 읽는 단 하나의 파일입니다.</span></td>
+            <td><span class="en">arena, on promotion (score ≥ 0.55)</span><span class="ko">아레나, 승격 때(점수 ≥ 0.55)</span></td>
+            <td><span class="en">self-play · <span class="mono">make play / gui / tui</span> · Rust core · <span class="mono">make export</span></span><span class="ko">자기대국 · <span class="mono">make play / gui / tui</span> · Rust 코어 · <span class="mono">make export</span></span></td>
+          </tr>
+          <tr>
+            <td class="mono">logs/run.jsonl</td>
+            <td><span class="en">One JSON line per event — backend, self-play progress, every train step, every arena verdict. An append-only history; training never reads it back.</span><span class="ko">사건마다 JSON 한 줄 — 백엔드, 자기대국 진행, 학습 스텝, 아레나 판정. 덧붙이기만 하는 역사이고, 학습이 되읽는 일은 없습니다.</span></td>
+            <td><span class="en">every phase</span><span class="ko">모든 단계</span></td>
+            <td><span class="en"><span class="mono">make status · watch</span> · you</span><span class="ko"><span class="mono">make status · watch</span> · 사람</span></td>
+          </tr>
+          <tr>
+            <td class="mono">train.out · train.pid</td>
+            <td><span class="en">Console output and process id of a background run.</span><span class="ko">백그라운드 런의 콘솔 출력과 프로세스 번호.</span></td>
+            <td class="mono">make train-bg</td>
+            <td class="mono">make tail · make stop</td>
+          </tr>
+          <tr>
+            <td class="mono">export/</td>
+            <td><span class="en"><span class="mono">best.npz</span> translated for other runtimes: <span class="mono">OmokNet.mlpackage</span> (CoreML), <span class="mono">.onnx</span>, or plain <span class="mono">.npz</span> + <span class="mono">model_meta.json</span>.</span><span class="ko"><span class="mono">best.npz</span>를 다른 런타임의 말로 번역한 것: <span class="mono">OmokNet.mlpackage</span>(CoreML), <span class="mono">.onnx</span>, 순수 <span class="mono">.npz</span> + <span class="mono">model_meta.json</span>.</span></td>
+            <td class="mono">make export</td>
+            <td><span class="en">iPhone / Mac app · ONNX runtimes</span><span class="ko">iPhone / Mac 앱 · ONNX 런타임</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note reveal"><span class="en"><b>If you only want to play, two files matter:</b> <span class="mono">checkpoints/best.npz</span> — the desktop GUI, the terminal and the Rust engine read it directly — and its export for the phone. Everything else exists so training can be killed at any moment and continue, and so you can see afterwards exactly what happened.</span><span class="ko"><b>대국만 하고 싶다면 중요한 파일은 둘뿐입니다.</b> <span class="mono">checkpoints/best.npz</span> — 데스크톱 GUI·터미널·Rust 엔진이 직접 읽습니다 — 그리고 휴대폰용 export. 나머지 전부는 학습을 언제 죽여도 이어지게 하고, 나중에 무슨 일이 있었는지 정확히 볼 수 있게 하기 위해 존재합니다.</span></p>
   </div>
 </section>
 
