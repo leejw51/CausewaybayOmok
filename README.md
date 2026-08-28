@@ -297,18 +297,90 @@ make game-portrait   # started in a portrait window
 ```
 
 Click or use the arrow keys, `SPACE` to place, `U` undo, `H` hint, `N` new
-game, `1`-`5` difficulty, `TAB` to swap colours, `W` to watch, `F11` for
-fullscreen. The window is resizable and the layout follows it: the panel sits
-beside the board in landscape and below it in portrait, and the board is always
-the largest whole-pixel grid that leaves the panel its room.
+game, `1`-`5` difficulty, `TAB` to swap colours, `W` to watch, `V` to turn the
+board, `S` for the text size, `M` to mute and `F11` for fullscreen. Every key
+has a button in the panel beside it.
+
+The game opens fullscreen — it is a board that wants every pixel it can have
+and an interface drawn at console sizes, and neither is served by a window
+somebody has to enlarge first. `F11`, or the button that is on screen from the
+first frame, comes back out.
+
+The last row of the panel is the window rather than the game: **TALL/WIDE**
+turns the board, **FULL/WINDOW** fills the screen, and **SIZE** steps the whole
+interface through four sizes. The first two are plain toggles — press, and it
+stays pressed, through a drag, a fullscreen and the next time the game opens.
+The size is a preference rather than an instruction: a window too small to hold
+the size asked for gets the largest one it *can* hold, and the one asked for
+comes back on its own when the window grows.
+
+### What it remembers, and where
+
+```
+~/.causewaybayomok/settings.jsonl
+```
+
+Which way up the board is, how big the text is, whether the window fills the
+screen, and whether the sound is on. Four values somebody might reasonably want
+to look at, edit or delete — which is the argument against LÖVE's own save
+directory, a path nobody can guess buried under `~/Library/Application Support`
+on a Mac.
+
+JSON Lines, and a line is only ever appended; the file is read from the top with
+each line overwriting the keys it names, so the last word on any setting wins:
+
+```json
+{"orientation":"landscape","text_size":2,"window":"full"}
+{"text_size":3}
+{"sound":"off"}
+```
+
+Worth the small strangeness of keeping four values in a growing file for two
+reasons. Appending never reads first, so two things changing a setting cannot
+lose each other's write the way a read-modify-write pair can. And a write cut
+off half way through damages one line at the end rather than the whole file —
+the reader takes only lines that are complete objects, so a torn record costs
+the setting it was carrying and nothing else. It is compacted back to a single
+line once it gets long. If the home directory cannot be written to, the game
+opens at its defaults, which is the right way for a preference to fail.
+
+The window is resizable and the layout follows it: the panel sits beside the
+board in landscape and below it in portrait, and the board is always the largest
+whole-pixel grid that leaves the panel its room. `V` chooses the arrangement
+without dragging anything — it turns the window over when there is one, and on a
+fullscreen 16:9 display, where there is no window to reshape, it still stacks the
+panel under the board, which is the only way to give the board every pixel of the
+height.
+
+The panel is measured in characters rather than in pixels, so the text size
+moves everything in step: turn it up and the panel widens, the buttons and bars
+grow with it and the board takes what is left. `layout.fit` is where that
+settles — it steps the size down until the panel can hold the blocks that cannot
+stand down, which is why the controls never fall off the bottom of it.
 
 Everything that moves goes through `love2d/effects.lua` — the Penner easing
-curves, a tween type, particle bursts, expanding shockwaves, floating text,
-decaying screen shake and the ambient motes drifting over the square. Stones
-land with an overshoot and a spark burst, the last move keeps a pulsing halo,
-the winning line lights up one stone at a time under a fountain of particles,
-the board dims under a slow sweep while the model thinks, and the backdrop
-drifts against the pointer.
+curves, a tween type, particle bursts and trails, expanding shockwaves, floating
+text, decaying screen shake and the ambient motes drifting over the square.
+
+A stone is thrown at its point rather than faded onto it. It comes in from off
+the board as a comet — three ghosts of the sprite strung out behind it, read off
+the same curve a few hundredths of a second earlier so they string out while it
+travels and pile into it as it slows, over a trail of sparks laid along the
+ground it actually covered rather than one puff a frame — and lands under two
+shockwaves, a directional spray thrown on down the line it came in on, and a
+kick of screen shake. Which edge it arrives from is the palette's own division:
+indigo falls out of the night sky, amber rises from the lamplight, which is the
+same thing the two stone sounds say a fourth apart.
+
+The landing is the moment everything else hangs off. The rules are settled when
+the move is played, but the fountain and the fanfare wait for the stone that
+caused them, and so does the model: it holds its reply until the board is still,
+because at 96 simulations the search comes back in a hundredth of a second and a
+watched game otherwise answers a stone that is still crossing the screen.
+
+After that the last move keeps a pulsing halo, the winning line lights up one
+stone at a time under a fountain of particles, the board dims under a slow sweep
+while the model thinks, and the backdrop drifts against the pointer.
 
 ### The art
 
@@ -328,8 +400,74 @@ are cut out of their flat backdrop with a hard circular alpha (an anti-aliased
 one would undo the effect), and the glows become alpha-from-luminance so their
 black backgrounds turn into transparency. Everything is PNG: these are
 composited over lit backgrounds with additive blending, where JPEG's ringing
-shows as haloes around the lamps. The text is a real bitmap font, drawn
-locally rather than generated, so it stays crisp at whole-number scales.
+shows as haloes around the lamps.
+
+### The font
+
+```bash
+make love-font
+```
+
+`tools/make_love2d_font.py` draws all ninety-five glyphs by hand on a 7×9 grid,
+as `#` and `.` in a table, and writes the atlas with nothing but the standard
+library — a PNG is a zlib stream with a length and a checksum around it, and a
+font that needs Pillow installed to edit one letter is a font nobody edits.
+
+It used to be Pillow's built-in default, which is a fine terminal face and the
+wrong thing entirely: light, narrow, and drawn for a nine-pixel line of code
+rather than for a menu on a console. A UI font from this era is not a typeface
+that happens to be small — it is designed on the grid. Every stem here is one
+pixel, so scaled up it is a solid two- or three-pixel bar; the alpha is 0 or 255
+and nothing between, so it stays hard-edged under the nearest-neighbour filter;
+capitals fill seven of the nine rows with the last two left for descenders; and
+every curve is a staircase drawn as one, because at three times the size an
+attempt at a smooth arc is what looks wrong.
+
+The interface is set in capitals throughout, which is what these machines did
+and is not only a style choice: a 7×9 cell has no room for the ascenders and
+descenders that make mixed case worth having at this size.
+
+Around it the panel is a console menu of about 1991 — a flat fill, a hard black
+edge, and a one-pixel bevel that is light along the top and left and dark along
+the bottom and right, which is the entire 3D effect. Headings are knocked out of
+filled bars, buttons invert when they are switched on rather than growing a
+third rendering for the pointer, the evaluation is sixteen lamps filling out
+from the middle rather than a smooth bar the hardware could not have drawn, and
+a scanline every fourth row takes the flatness off a large area of one colour.
+
+### The sound
+
+Fourteen effects, synthesised rather than downloaded:
+
+```bash
+make love-sfx                       # all of them
+make love-sfx SOUND="indigo win"    # just these two
+```
+
+`tools/make_love2d_sfx.py` is a PSG in a hundred lines of arithmetic — two
+square waves, a stepped triangle, the NES's 15-bit noise register and a
+four-bit volume — so a stone's clack is a number in that file rather than a
+waveform in a binary nobody can open. There is no sample pack, no licence to
+honour and nothing to download; the whole set is 105 KB of 8-bit mono WAV and is
+committed, so `make love-sfx` only needs running to *change* a sound.
+
+Three constraints keep it a chip rather than a soft synth, and all three are
+deliberate: the envelopes are quantised to sixteen levels, because that
+stair-step on a decay tail is most of the sound; the waveforms are the ones the
+hardware had, with no sine anywhere; and the noise really is a shift register
+clocked by a divider, which is why the stones sound like wood and not like
+static. Indigo and amber get the same stone a fourth apart — one sound per side
+rather than one per player, so a move is heard as one colour or the other
+without looking up from the board, and watch mode needs no third sound.
+
+`love2d/sound.lua` is the part that plays them, and it exists because playing a
+sound naively goes wrong three ways: a Source is one voice and re-playing it
+restarts it, so every effect keeps a small pool of clones; the game fires far
+more often than an ear wants, so every effect has a minimum gap and the ones
+that fire most have the longest; and the same sample twice running sounds like a
+stuck machine, so the ones that repeat get a few percent of random detune. None
+of it is load-bearing — a checkout without `assets/sfx` and a machine with no
+audio device both play on in silence, and the game says so once at startup.
 
 ## Using the model in the game (iPhone / Mac)
 
@@ -413,7 +551,11 @@ The Rust core and the two clients that play the trained model:
 | `love2d/main.lua` | the LÖVE game |
 | `love2d/effects.lua` | easing, tweens, particles, shockwaves, shake |
 | `love2d/layout.lua` | the landscape / portrait layouts |
+| `love2d/sound.lua` | voice pools, throttles and detune for the effects |
+| `love2d/store.lua` | the preferences, as a JSON Lines log in `~/.causewaybayomok` |
+| `love2d/assets/font.png` | the bitmap font (see `tools/make_love2d_font.py`) |
 | `love2d/assets/` | Grok-generated pixel art (see `tools/make_love2d_assets.py`) |
+| `love2d/assets/sfx/` | 8-bit sound effects (see `tools/make_love2d_sfx.py`) |
 
 Checkpoints are plain `.npz` files of PyTorch-named NCHW arrays, so a model
 trained on a CUDA machine resumes on a Mac and vice versa — there is a test for

@@ -184,40 +184,6 @@ def glow_sprite(image: Image.Image, size: int, colours: int = 12) -> Image.Image
     return Image.fromarray(rgba)
 
 
-def bitmap_font(_: Image.Image | None = None) -> Image.Image:
-    """A LÖVE image font, in the format `love.graphics.newImageFont` wants.
-
-    Not a Grok asset -- this is a font, and an image model cannot be trusted
-    to letter one.  Pillow ships a fixed-width bitmap font, which is exactly
-    the right thing here: it is already on a pixel grid, so scaled up by whole
-    numbers it stays as crisp as the sprites next to it, where a vector face
-    would go soft and break the 16-bit look.
-
-    Layout: pixel (0, 0) sets the separator colour, and a full-height column of
-    that colour stands between neighbouring glyphs.  Glyph pixels are white so
-    the game can tint the text to whatever the panel needs.
-    """
-    font = ImageFont.load_default()
-    glyphs = "".join(chr(c) for c in range(32, 127))
-    advance = max(1, round(font.getlength("M")))
-    ascent, descent = font.getmetrics()
-    height = ascent + descent
-
-    separator = (255, 0, 255, 255)
-    out = Image.new("RGBA", ((advance + 1) * len(glyphs) + 1, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(out)
-    for i in range(len(glyphs) + 1):
-        draw.line([((advance + 1) * i, 0), ((advance + 1) * i, height - 1)], fill=separator)
-    for i, char in enumerate(glyphs):
-        draw.text(((advance + 1) * i + 1, 0), char, font=font, fill=(255, 255, 255, 255))
-    return out
-
-
-#: The glyph string to hand `love.graphics.newImageFont`, kept next to the
-#: writer so the two cannot drift apart.
-FONT_GLYPHS = "".join(chr(c) for c in range(32, 127))
-
-
 # Sizes are the true pixel-art resolution; the game scales them up by whole
 # numbers with a nearest-neighbour filter, so these stay crisp rather than soft.
 PROCESS = {
@@ -227,7 +193,6 @@ PROCESS = {
     "stone_white": lambda im: round_sprite(im, 32, False, trim=0.96, colours=8),
     "spark": lambda im: glow_sprite(im, 32, colours=8),
     "halo": lambda im: glow_sprite(im, 64, colours=8),
-    "font": bitmap_font,
 }
 
 
@@ -243,7 +208,8 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(RAW_DIR, exist_ok=True)
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # The font is drawn locally, so only the Grok-backed assets are fetched.
+    # The font is not here: it is hand-drawn on a pixel grid by
+    # `tools/make_love2d_font.py`, which needs neither an API key nor Pillow.
     missing = [n for n in names if n in PROMPTS
                and (args.force or not os.path.exists(os.path.join(RAW_DIR, f"{n}.png")))]
     if missing:
