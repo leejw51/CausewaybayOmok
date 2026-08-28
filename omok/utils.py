@@ -35,26 +35,39 @@ def atomic_write_text(path: str, text: str) -> None:
     atomic_write_bytes(path, text.encode("utf-8"))
 
 
-def atomic_write_with(path: str, writer, suffix: str = ".part") -> None:
+def atomic_write_with(path: str, writer, suffix: str = ".part",
+                      exclusive: bool = False) -> None:
     """Atomically produce ``path`` via ``writer(tmp_path)`` (for np.savez etc.).
 
     ``suffix`` matters for writers such as ``np.savez`` that append ``.npz``
     to a filename that lacks it -- pass the real extension in that case.
+
+    With ``exclusive=True`` the file is linked into place instead of renamed
+    over whatever is there, so if ``path`` already exists (another process
+    won the race) nothing is overwritten and ``FileExistsError`` is raised.
     """
     directory = os.path.dirname(os.path.abspath(path)) or "."
     os.makedirs(directory, exist_ok=True)
     tmp = os.path.join(directory, f".tmp-{os.getpid()}-{time.time_ns()}{suffix}")
     try:
         writer(tmp)
-        fd = os.open(tmp, os.O_RDONLY)  # writers close the file themselves,
-        try:                            # so re-open to fsync before the rename
+        # Writers close the file themselves, so re-open to fsync before the
+        # rename.  Read-write, not read-only: Windows refuses to flush a
+        # handle without write access.
+        fd = os.open(tmp, os.O_RDWR)
+        try:
             os.fsync(fd)
         finally:
             os.close(fd)
-        os.replace(tmp, path)
+        if exclusive:
+            os.link(tmp, path)  # atomic and fails with EEXIST, unlike replace
+        else:
+            os.replace(tmp, path)
     except BaseException:
         _silent_unlink(tmp)
         raise
+    if exclusive:
+        _silent_unlink(tmp)
 
 
 def _silent_unlink(path: str) -> None:

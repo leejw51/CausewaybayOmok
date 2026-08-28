@@ -67,8 +67,15 @@ def cmd_train(args: argparse.Namespace) -> int:
     killer = GracefulKiller()
     pipeline = Pipeline(cfg, killer=killer)
     try:
-        if not args.quiet:
-            print(run_report(cfg, backend=pipeline.backend, do_benchmark=not args.no_bench))
+        start = int(pipeline.state.get("iteration", 0))
+        todo = pipeline.target_iteration(args.iterations) - start
+        if todo <= 0:
+            print(f"run is already at iteration {start} -- nothing to do "
+                  f"(pass --iterations N to train N more)")
+            return 0
+        if not args.quiet:  # report the iterations this invocation will run
+            print(run_report(cfg, backend=pipeline.backend, do_benchmark=not args.no_bench,
+                             iterations=todo))
         summary = pipeline.run(args.iterations)
     finally:
         pipeline.close()
@@ -94,13 +101,22 @@ def cmd_selfplay(args: argparse.Namespace) -> int:
     logger = JsonlLogger(os.path.join(paths.logs, "selfplay.jsonl"))
     killer = GracefulKiller()
     if args.iteration is None:
-        # Default: add --games NEW games to the run's current iteration.
+        # Default: add --games NEW games on top of the run's data.  They are
+        # tagged with the latest iteration whose self-play phase is already
+        # over: the pipeline only tops up the iteration it is currently on,
+        # so games tagged that way are never absorbed into its quota.
         # (With an explicit --iteration, --games is the top-up target instead,
         # matching how the pipeline resumes an interrupted self-play phase.)
         from .replay import count_games
 
         state = read_json(paths.state, default={}) or {}
         iteration = int(state.get("iteration", 0))
+        if state.get("phase", "selfplay") == "selfplay":
+            iteration -= 1  # this iteration's self-play is still pending
+        if iteration < 0:  # brand-new run: nothing is finished yet
+            iteration = 0
+            print(f"note: no iteration is finished yet -- these {args.games} games "
+                  f"count towards iteration 0's {cfg.selfplay.games_per_iter}")
         target = count_games(paths.replay, iteration=iteration) + args.games
     else:
         iteration, target = args.iteration, args.games
@@ -326,8 +342,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="how many NEW games to generate")
     p.add_argument("--iteration", type=int, default=None,
                    help="tag games with this iteration and treat --games as "
-                        "the top-up target for it (default: current iteration, "
-                        "--games added on top of what exists)")
+                        "the top-up target for it (default: the last finished "
+                        "iteration, --games added on top of what exists)")
     p.set_defaults(func=cmd_selfplay)
 
     p = sub.add_parser("fit", help="train on existing self-play data only")

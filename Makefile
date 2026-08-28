@@ -191,7 +191,7 @@ else
 	$(OMOK) train $(COMMON) --iterations $(ITERS)
 endif
 
-resume: ## Continue this run from the saved state (ITERS= to add more)
+resume: ## Continue this run to the target it was started with (ITERS= to add more)
 	$(OMOK) train $(COMMON) $(if $(ITERS),--iterations $(ITERS),)
 
 # Milestone targets train UP TO an absolute iteration (idempotent: already
@@ -226,7 +226,7 @@ train-strong: ## Train to iteration 500 (~8.5h on RTX 5070): much stronger than 
 train-full: ## Train to iteration 1000 (~17h on RTX 5070): the full run
 	@$(MAKE) --no-print-directory train-to TO=1000
 
-train-bg: ## Train in the background (ITERS= or preset default), logging to $(OUTLOG)
+train-bg: ## Train in the background (ITERS= or the run's saved target), logging to $(OUTLOG)
 	@mkdir -p $(RUN)/logs
 	@if [ -f $(PIDFILE) ] && kill -0 $$(cat $(PIDFILE)) 2>/dev/null; then \
 	  echo "already training (pid $$(cat $(PIDFILE))) -- make stop first"; exit 1; fi

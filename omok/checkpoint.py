@@ -115,11 +115,17 @@ class CheckpointManager:
         return sorted(tags)
 
     def latest(self) -> Checkpoint | None:
+        # Newest step first.  The pointer normally names the newest complete
+        # save, but a crash after the weights write and before the pointer
+        # update leaves a newer step-N.npz on disk -- that one wins, and the
+        # pointer only breaks ties (a non-step tag it names goes first).
         pointer = read_json(self.latest_pointer, default=None)
-        candidates: list[str] = []
+        steps: dict[str, int] = {}
         if isinstance(pointer, dict) and pointer.get("tag"):
-            candidates.append(pointer["tag"])
-        candidates += list(reversed(self.list_tags()))
+            steps[pointer["tag"]] = int(pointer.get("step", 0))
+        for tag in self.list_tags():
+            steps.setdefault(tag, int(tag[len("step-"):]))
+        candidates = sorted(steps, key=steps.__getitem__, reverse=True)
         for tag in candidates:
             weights_path = self.path_for(tag)
             if not os.path.exists(weights_path):
@@ -138,6 +144,13 @@ class CheckpointManager:
                 match = re.fullmatch(r"step-(\d+)", tag)
                 meta = {"step": int(match.group(1)) if match else 0,
                         "tag": tag, "meta_missing": True}
+                # save() writes the optimiser file *before* the meta, so it
+                # is usually there too: pick it up rather than resuming with
+                # fresh optimiser moments.
+                for ext in (".opt.pt", ".opt.npz"):
+                    if os.path.exists(self.path_for(tag, ext)):
+                        meta["optimizer"] = os.path.basename(self.path_for(tag, ext))
+                        break
             return Checkpoint(tag, weights_path, meta)
         return None
 

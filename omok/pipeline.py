@@ -148,18 +148,36 @@ class Pipeline:
                         path=self.checkpoints.best_path)
 
     # ------------------------------------------------------------- driver
+    def target_iteration(self, iterations: int | None = None) -> int:
+        """Where this invocation will stop (absolute iteration number).
+
+        ``iterations`` (``--iterations N``) always means N *more*.  Without it
+        a run continues to the target it was last started with -- so a crash
+        during ``make train`` (to 200) resumes to 200, not to the preset total
+        -- and a run that has never been given a target uses the configured
+        ``cfg.iterations``.
+        """
+        start_iteration = int(self.state.get("iteration", 0))
+        if iterations is not None:
+            return start_iteration + iterations
+        target = self.state.get("target_iteration")
+        if target is None:
+            target = self.cfg.iterations
+        return max(start_iteration, int(target))
+
     def run(self, iterations: int | None = None) -> dict[str, Any]:
         start_iteration = int(self.state.get("iteration", 0))
-        if iterations is None:
-            # Default: train up to the configured total.  A resume finishes
-            # the run instead of adding a whole fresh budget each time.
-            end_iteration = max(start_iteration, self.cfg.iterations)
-            if end_iteration == start_iteration:
-                self.logger.log("pipeline.complete", iteration=start_iteration,
-                                configured=self.cfg.iterations,
-                                hint="pass --iterations N to train N more")
-        else:  # explicit count: run exactly this many more iterations
-            end_iteration = start_iteration + iterations
+        end_iteration = self.target_iteration(iterations)
+        if end_iteration == start_iteration:
+            # Nothing to do: say so and leave the run directory exactly as it
+            # is (no checkpoint rewrite, no optimiser state clobbered).
+            self.logger.log("pipeline.complete", iteration=start_iteration,
+                            target=end_iteration, configured=self.cfg.iterations,
+                            hint="pass --iterations N to train N more")
+            summary = self.summary()
+            summary["complete"] = True
+            return summary
+        self._save_state(target_iteration=end_iteration)
         self.logger.log("pipeline.start", iteration=start_iteration, until=end_iteration,
                         phase=self.state.get("phase", "selfplay"),
                         run_dir=os.path.abspath(self.paths.root))

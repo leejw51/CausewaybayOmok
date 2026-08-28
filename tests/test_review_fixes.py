@@ -107,6 +107,26 @@ def test_checkpoint_without_meta_json_still_resumes(tmp_path):
         assert np.allclose(other.get_weights()[key], value)
 
 
+def test_orphan_checkpoint_beats_a_stale_latest_pointer(tmp_path):
+    """save() writes weights -> optimiser -> meta -> pointer; a crash after the
+    optimiser leaves the newest step with no meta and the pointer still naming
+    the previous save.  The newest weights (and their optimiser) must win."""
+    manager = CheckpointManager(str(tmp_path))
+    manager.save(FakeBackend(seed=1), {"step": 10})
+    newest = FakeBackend(seed=2)
+    saved = manager.save(newest, {"step": 20})
+    os.unlink(manager.path_for(saved.tag, ".json"))
+    atomic_write_text(manager.path_for(saved.tag, ".opt.pt"), "optimiser state")
+    atomic_write_text(manager.latest_pointer, '{"tag": "step-00000010", "step": 10}')
+
+    latest = manager.latest()
+    assert latest is not None and latest.tag == saved.tag
+    assert latest.meta["step"] == 20 and latest.meta["meta_missing"]
+    assert latest.meta["optimizer"] == os.path.basename(manager.path_for(saved.tag, ".opt.pt"))
+    for key, value in newest.get_weights().items():
+        assert np.allclose(latest.weights()[key], value)
+
+
 # ---- a second writer never clobbers existing shards (replay.py) ------------
 def test_shard_writer_skips_numbers_taken_by_another_process(tmp_path):
     def game(move):
@@ -124,6 +144,42 @@ def test_shard_writer_skips_numbers_taken_by_another_process(tmp_path):
     assert count_games(str(tmp_path)) == 2
 
 
+def test_shard_writer_survives_losing_the_race(tmp_path, monkeypatch):
+    """Both writers pass the exists() check before either has written: the
+    loser must not overwrite the winner's shard (os.replace would)."""
+    import omok.replay as replay
+
+    def game(move):
+        record = GameRecord(winner=1)
+        policy = np.zeros(49, dtype=np.float32)
+        policy[move] = 1.0
+        record.add(move, policy)
+        return record
+
+    monkeypatch.setattr(replay.os.path, "exists", lambda path: False)  # stale view
+    a = ShardWriter(str(tmp_path), flush_every_games=1)
+    b = ShardWriter(str(tmp_path), flush_every_games=1)
+    a.add(game(0))
+    b.add(game(1))
+    monkeypatch.undo()
+    paths = shard_paths(str(tmp_path))
+    assert [os.path.basename(p) for p in paths] == ["shard-00000000.npz", "shard-00000001.npz"]
+    assert count_games(str(tmp_path)) == 2
+    assert not [n for n in os.listdir(tmp_path) if n.startswith(".tmp-")]  # no litter
+
+
+def test_atomic_write_exclusive_never_overwrites(tmp_path):
+    from omok.utils import atomic_write_with
+
+    target = tmp_path / "claimed.txt"
+    target.write_text("winner")
+    with pytest.raises(FileExistsError):
+        atomic_write_with(str(target), lambda tmp: open(tmp, "w").write("loser"),
+                          exclusive=True)
+    assert target.read_text() == "winner"
+    assert sorted(os.listdir(tmp_path)) == ["claimed.txt"]
+
+
 # ---- default run() finishes the configured total, not total-more -----------
 def test_resume_of_a_finished_run_is_a_noop(tmp_path):
     from omok.pipeline import Pipeline
@@ -136,13 +192,80 @@ def test_resume_of_a_finished_run_is_a_noop(tmp_path):
         first.close()
     games_after = count_games(cfg.paths().replay)
 
+    checkpoints = cfg.paths().checkpoints
+    before = {name: os.stat(os.path.join(checkpoints, name)).st_mtime_ns
+              for name in os.listdir(checkpoints)}
+
     second = Pipeline(cfg, killer=NoKiller(), echo=False)
     try:
+        assert second.target_iteration() == 1  # what cmd_train checks first
         summary = second.run()  # already complete -> nothing to do
     finally:
         second.close()
-    assert summary["iteration"] == 1
+    assert summary["iteration"] == 1 and summary["complete"]
     assert count_games(cfg.paths().replay) == games_after
+    after = {name: os.stat(os.path.join(checkpoints, name)).st_mtime_ns
+             for name in os.listdir(checkpoints)}
+    assert after == before, "a no-op resume rewrote checkpoint files"
+    events = [line for line in open(os.path.join(cfg.paths().logs, "run.jsonl"))]
+    assert not any('"pipeline.start"' in line for line in events[-3:])
+
+
+def test_interrupted_run_resumes_to_its_own_target(tmp_path):
+    """`make train` (to N) crashes -> `make resume` must finish at N, not at
+    the preset total and not become a no-op."""
+    from omok.pipeline import Pipeline
+
+    cfg = tiny_config(tmp_path / "run")  # configured total: 1
+
+    class StopAfterFirstArena(NoKiller):
+        stop = False
+
+    killer = StopAfterFirstArena()
+    first = Pipeline(cfg, killer=killer, echo=False)
+    real_arena = first._phase_arena
+
+    def arena_then_stop(iteration):
+        real_arena(iteration)
+        killer.stop = True
+
+    first._phase_arena = arena_then_stop
+    try:
+        first.run(3)  # asked for 3 more, interrupted during the first
+    finally:
+        first.close()
+    state = read_json(cfg.paths().state)
+    assert state["iteration"] < 3 and state["target_iteration"] == 3
+
+    resumed = Pipeline(cfg, killer=NoKiller(), echo=False)
+    try:
+        assert resumed.target_iteration() == 3  # not cfg.iterations (1)
+        assert resumed.run()["iteration"] == 3
+    finally:
+        resumed.close()
+
+
+def test_stale_relative_iterations_in_config_do_not_add_a_fresh_budget(tmp_path):
+    """Runs made before the semantics change hold the old relative --iterations
+    value in config.json: a bare resume must not treat it as 'that many more'."""
+    from omok.pipeline import Pipeline
+
+    cfg = tiny_config(tmp_path / "run")
+    pipeline = Pipeline(cfg, killer=NoKiller(), echo=False)
+    try:
+        pipeline.run()
+    finally:
+        pipeline.close()
+    state = read_json(cfg.paths().state)
+    del state["target_iteration"]  # an old run never recorded one
+    atomic_write_text(cfg.paths().state, __import__("json").dumps(state))
+
+    old = Pipeline(cfg, killer=NoKiller(), echo=False)  # config.iterations == 1
+    try:
+        assert old.target_iteration() == 1
+        assert old.target_iteration(2) == 3  # explicit count still adds
+    finally:
+        old.close()
 
 
 def test_explicit_iteration_count_still_adds_more(tmp_path):
@@ -155,6 +278,32 @@ def test_explicit_iteration_count_still_adds_more(tmp_path):
         assert pipeline.run(1)["iteration"] == 2   # --iterations N: N more
     finally:
         pipeline.close()
+
+
+# ---- `omok selfplay` adds games instead of pre-filling the next quota ------
+def test_manual_selfplay_games_are_added_not_absorbed(tmp_path, capsys):
+    from omok.cli import main
+    from omok.pipeline import Pipeline
+
+    cfg = tiny_config(tmp_path / "run")
+    pipeline = Pipeline(cfg, killer=NoKiller(), echo=False)
+    try:
+        pipeline.run()  # iteration 0 done; state now points at iteration 1
+    finally:
+        pipeline.close()
+    games_before = count_games(cfg.paths().replay)
+    cfg.save(cfg.paths().config)
+
+    assert main(["selfplay", "--run-dir", str(tmp_path / "run"), "--games", "2"]) == 0
+    assert count_games(cfg.paths().replay) == games_before + 2
+    assert count_games(cfg.paths().replay, iteration=1) == 0  # not iteration 1's quota
+
+    again = Pipeline(cfg, killer=NoKiller(), echo=False)
+    try:
+        again.run(1)  # iteration 1 still self-plays its full games_per_iter
+    finally:
+        again.close()
+    assert count_games(cfg.paths().replay, iteration=1) == cfg.selfplay.games_per_iter
 
 
 # ---- a game decided during the random opening must not crash ---------------

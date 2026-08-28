@@ -116,8 +116,14 @@ def benchmark(backend, cfg: Config, spec: NetSpec, quick: bool = True) -> dict[s
 
 # ----------------------------------------------------------------- estimates
 def estimate_schedule(cfg: Config, measured: dict[str, float],
-                      mean_game_length: float | None = None) -> dict[str, Any]:
-    """Turn measured throughput into per-iteration and total time estimates."""
+                      mean_game_length: float | None = None,
+                      iterations: int | None = None) -> dict[str, Any]:
+    """Turn measured throughput into per-iteration and total time estimates.
+
+    ``iterations`` is how many will actually run (default: the configured
+    total) so the ETA matches what ``--iterations N`` asked for.
+    """
+    total_iterations = cfg.iterations if iterations is None else iterations
     # On small boards games cannot run as long as the 15x15 default assumes.
     length = mean_game_length or min(DEFAULT_GAME_LENGTH, cfg.action_size * 0.6)
     moves_per_s = max(1e-6, measured.get("selfplay_moves_per_s", 1.0))
@@ -140,8 +146,8 @@ def estimate_schedule(cfg: Config, measured: dict[str, float],
         "train_seconds": train_seconds,
         "arena_seconds": arena_seconds,
         "iteration_seconds": per_iteration,
-        "iterations": cfg.iterations,
-        "total_seconds": per_iteration * cfg.iterations,
+        "iterations": total_iterations,
+        "total_seconds": per_iteration * total_iterations,
         "positions_per_iteration": cfg.selfplay.games_per_iter * length,
         "samples_per_iteration": cfg.train.steps_per_iter * cfg.train.batch_size,
     }
@@ -196,14 +202,14 @@ def format_report(cfg: Config, spec: NetSpec, backend_info: dict[str, Any],
             add(f"  arena             {human_time(schedule['arena_seconds'])} per iteration "
                 f"({cfg.arena.games} games)")
         add(f"  one iteration     {human_time(schedule['iteration_seconds'])}")
-        add(f"  {cfg.iterations} iterations".ljust(20)
+        add(f"  {schedule['iterations']} iterations".ljust(20)
             + f"{human_time(schedule['total_seconds'])}"
             + f"   ({schedule['total_seconds'] / 3600:.1f} hours of compute)")
         milestones = [(label, n) for label, n in
                       (("plays legally, blocks obvious threats", 10),
                        ("beats a casual human", 60),
                        ("hard to beat without study", 200))
-                      if n <= cfg.iterations]
+                      if n <= schedule["iterations"]]
         if milestones:
             add("")
             add("  Rough milestones (self-play strength grows roughly with iterations)")
@@ -225,7 +231,7 @@ def format_report(cfg: Config, spec: NetSpec, backend_info: dict[str, Any],
 
 
 def run_report(cfg: Config, backend=None, do_benchmark: bool = True,
-               quick: bool = True) -> str:
+               quick: bool = True, iterations: int | None = None) -> str:
     from .backends import make_backend
 
     spec = NetSpec.from_config(cfg)
@@ -236,5 +242,5 @@ def run_report(cfg: Config, backend=None, do_benchmark: bool = True,
     measured = benchmark(backend, cfg, spec, quick=quick) if do_benchmark else None
     data = dataset_stats(cfg.paths().replay) if os.path.isdir(cfg.paths().replay) else None
     length = data["mean_length"] if data and data["games"] >= 5 else None
-    schedule = estimate_schedule(cfg, measured, length) if measured else None
+    schedule = estimate_schedule(cfg, measured, length, iterations) if measured else None
     return format_report(cfg, spec, backend.describe(), model, measured, schedule)
